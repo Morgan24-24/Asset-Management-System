@@ -12,10 +12,11 @@ import Signup from "./pages/Signup"
 import Department from './pages/Departments'
 
 
-// Protected Route Component
+// Protected Route Component - checks for authentication token
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
   
+ // Redirect to login if no token exists
   if (!token) {
     return <Navigate to="/" replace />;
   }
@@ -23,6 +24,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Main application component that contains all the business logic
 function MainApp() {
   const [currentView, setCurrentView] = useState('dashboard')
   const [assets, setAssets] = useState([])
@@ -37,7 +39,7 @@ function MainApp() {
     setIsSidebarOpen(!isSidebarOpen)
   }
 
-  // Fetch current user info
+  // Fetch current user info from API
   const fetchUser = async () => {
     try {
       const response = await axiosInstance.get('/users/me') 
@@ -47,6 +49,8 @@ function MainApp() {
     }
   }
 
+
+  // Fetch all assets from API
   const fetchAssets = async () => {
     setLoading(true)
     setError('')
@@ -61,6 +65,7 @@ function MainApp() {
     }
   }
 
+  // Fetch all maintenance records from API
   const fetchMaintenance = async () => {
     try {
       const response = await axiosInstance.get('/maintenance')
@@ -70,6 +75,7 @@ function MainApp() {
     }
   }
 
+  // Fetch all software licenses from API
   const fetchLicenses = async () => {
     try {
       const response = await axiosInstance.get('/licenses')
@@ -79,6 +85,7 @@ function MainApp() {
     }
   }
 
+  // Fetch initial data when component mounts
   useEffect(() => {
     fetchUser()
     fetchAssets()
@@ -86,6 +93,7 @@ function MainApp() {
     fetchLicenses()
   }, [])
 
+ // Handle creating a new asset
   const handleCreateAsset = async (assetData) => {
     try {
       setError('')
@@ -98,6 +106,7 @@ function MainApp() {
     }
   }
 
+  // Handle deleting an asset with confirmation
   const handleDeleteAsset = async (assetId) => {
     if (window.confirm('Are you sure you want to delete this asset?')) {
       try {
@@ -111,6 +120,7 @@ function MainApp() {
     }
   }
 
+  // Handle adding a new maintenance record
   const handleAddMaintenance = async (maintenanceData) => {
     try {
       setError('')
@@ -125,6 +135,7 @@ function MainApp() {
     }
   }
 
+ // Handle adding a new software license
   const handleAddLicense = async (licenseData) => {
     try {
       setError('')
@@ -138,6 +149,7 @@ function MainApp() {
     }
   }
 
+  // Handle deleting a software license with confirmation
   const handleDeleteLicense = async (licenseId) => {
     if (window.confirm('Are you sure you want to delete this license?')) {
       try {
@@ -151,6 +163,7 @@ function MainApp() {
     }
   }
 
+ // Handle deleting a maintenance record with confirmation
   const handleDeleteMaintenance = async (maintenanceId) => {  
     if (window.confirm('Are you sure you want to delete this maintenance record?')) {
       try {
@@ -164,6 +177,7 @@ function MainApp() {
     }
   }
 
+  // Handle user logout with confirmation
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
       localStorage.removeItem('token')

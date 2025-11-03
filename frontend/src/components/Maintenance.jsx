@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 
 const Maintenance = ({ assets, maintenance, onAddMaintenance, onDeleteMaintenance, onRefresh }) => {
+  // State to control visibility of the maintenance form
   const [showForm, setShowForm] = useState(false)
+   // State to manage form data for new maintenance records
   const [formData, setFormData] = useState({
     asset_id: '',
     activity: '',
@@ -9,8 +11,10 @@ const Maintenance = ({ assets, maintenance, onAddMaintenance, onDeleteMaintenanc
     notes: ''
   })
 
+  // Handle form submission for adding new maintenance record
   const handleSubmit = async (e) => {
     e.preventDefault()
+     // Call parent function to add maintenance and wait for result
     const success = await onAddMaintenance({
       ...formData,
       cost: parseFloat(formData.cost) || 0
@@ -27,6 +31,7 @@ const Maintenance = ({ assets, maintenance, onAddMaintenance, onDeleteMaintenanc
     }
   }
 
+   // Handle input changes in the form
   const handleChange = (e) => {
     setFormData({
       ...formData,

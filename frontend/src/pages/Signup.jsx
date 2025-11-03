@@ -15,8 +15,10 @@ function Signup() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   
+   // React Router navigation hook
   const navigate = useNavigate();
 
+   // Handle signup form submission
   const handleSignup = async (e) => {
     e.preventDefault();
     setError(null); // Clear previous errors

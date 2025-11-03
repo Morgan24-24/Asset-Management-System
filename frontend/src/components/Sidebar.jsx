@@ -12,7 +12,9 @@ import {
 } from 'react-icons/fa'
 import './Sidebar.css'
 
+// Sidebar component for navigation and user actions
 const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, onLogout }) => {
+  // Define menu items with their icons and labels
   const menuItems = [
     { id: 'dashboard', icon: FaTachometerAlt, label: 'Dashboard' },
     { id: 'assets', icon: FaDesktop, label: 'Assets' },
@@ -21,8 +23,10 @@ const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, on
     { id: 'departments', icon: FaBuilding, label: 'Departments' },
   ]
 
+  // Handle navigation to different views
   const handleNavigation = (view) => {
     setCurrentView(view)
+    // Auto-close sidebar on mobile after navigation
     if (window.innerWidth <= 768) {
       toggleSidebar()
     }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
+// Base URL for API calls
 const API_BASE = 'http://127.0.0.1:8000';
 
 function Login() {
@@ -11,6 +12,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+   // Handle login form submission
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");

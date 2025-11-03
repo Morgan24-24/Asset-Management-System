@@ -1,7 +1,10 @@
 import React, { useState } from 'react'
 
+// SoftwareLicenses component for managing software license records
 const SoftwareLicenses = ({ licenses, onAddLicense, onDeleteLicense, onRefresh }) => {
+   // State to control visibility of the license form
   const [showForm, setShowForm] = useState(false)
+   // State to manage form data for new license records
   const [formData, setFormData] = useState({
     name: '',
     vendor: '',
@@ -14,13 +17,16 @@ const SoftwareLicenses = ({ licenses, onAddLicense, onDeleteLicense, onRefresh }
     status: 'Active'
   })
 
+   // Handle form submission for adding new license
   const handleSubmit = async (e) => {
     e.preventDefault()
+    // Call parent function to add license and wait for result
     const success = await onAddLicense({
       ...formData,
       cost: parseFloat(formData.cost) || 0
     })
     
+     // If successful, reset form and hide it
     if (success) {
       setFormData({
         name: '',
@@ -37,10 +43,11 @@ const SoftwareLicenses = ({ licenses, onAddLicense, onDeleteLicense, onRefresh }
     }
   }
 
+  // Handle input changes in the form
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value // Update specific field based on input name
     })
   }
 

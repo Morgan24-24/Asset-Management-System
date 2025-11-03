@@ -12,13 +12,16 @@ import {
 } from 'react-icons/fi'
 
 const Dashboard = ({ assets, maintenance, licenses, onNavigate }) => {
+  // For storing summary data from API
   const [summary, setSummary] = useState(null)
-  const [showAlert, setShowAlert] = useState(true) // Add this state
+  const [showAlert, setShowAlert] = useState(true) 
   const API_BASE = 'http://127.0.0.1:8000'
 
+   // Fetch summary data when component mounts or assets/maintenance change
   useEffect(() => {
     const fetchSummary = async () => {
       try {
+         // Get summary statistics from API
         const response = await axiosInstance.get('/report/summary')
         setSummary(response.data)
       } catch (err) {

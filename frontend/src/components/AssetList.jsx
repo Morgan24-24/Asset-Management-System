@@ -6,7 +6,9 @@ const AssetList = ({ assets, loading, onDelete, onRefresh, onNewAssetClick }) =>
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
+   // Filter assets based on search term and filter criteria
   const filteredAssets = assets.filter(asset => {
+     // Check if asset matches search term in any relevant field
     const matchesSearch = searchTerm === '' || 
       asset.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -14,7 +16,9 @@ const AssetList = ({ assets, loading, onDelete, onRefresh, onNewAssetClick }) =>
       asset.serial.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (asset.assignee && asset.assignee.toLowerCase().includes(searchTerm.toLowerCase()))
 
+      // Check if asset matches selected type filter
     const matchesType = filterType === '' || asset.type === filterType
+    // Check if asset matches selected status filter
     const matchesStatus = filterStatus === '' || asset.status === filterStatus
 
     return matchesSearch && matchesType && matchesStatus

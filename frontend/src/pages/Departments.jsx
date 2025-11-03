@@ -3,14 +3,17 @@ import axiosInstance from '../api/axios'
 import { FiPlus, FiEdit2, FiTrash2, FiMapPin, FiPackage, FiUser, FiMail, FiPhone, FiHash } from 'react-icons/fi'
 
 const Department = () => {
+   // State for storing list of departments
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  // State to track which department is being edited (null for new departments)
   const [editingDept, setEditingDept] = useState(null)
+  // State for form data
   const [formData, setFormData] = useState({
     name: '',
-    code: '',  // NEW
+    code: '',  // Department Code(e.g., IT, HR)
     location: '',
     head_of_department: '',
     contact_email: '',
@@ -22,6 +25,7 @@ const Department = () => {
     setLoading(true)
     setError('')
     try {
+       // Make API call to get all departments
       const response = await axiosInstance.get('/departments')
       setDepartments(response.data)
     } catch (err) {
@@ -32,6 +36,7 @@ const Department = () => {
     }
   }
 
+   // Fetch departments when component mounts
   useEffect(() => {
     fetchDepartments()
   }, [])
