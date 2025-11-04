@@ -1,14 +1,17 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
+from dotenv import load_dotenv
 
-# Database URL (SQLite in this case)
-DATABASE_URL = "sqlite:///./itams.db"
+# Load environment variables
+load_dotenv()
+
+# Get database URL from environment
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://itams_user:itams123@localhost:5432/itams_db")
 
 # Create the database engine
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
+engine = create_engine(DATABASE_URL)
 
 # Create a local session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
