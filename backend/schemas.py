@@ -308,3 +308,9 @@ class UserPermissionResponse(BaseModel):
 
 class UserWithPermissions(UserResponse):
     permissions: List[str] = []  # List of permission names
+
+
+# ==================== PERMISSION BULK UPDATE SCHEMA ====================
+
+class PermissionBulkUpdate(BaseModel):
+    permission_ids: List[int]

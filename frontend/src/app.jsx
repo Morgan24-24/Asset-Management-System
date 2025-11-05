@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import axiosInstance from './api/axios'
 import Dashboard from './components/Dashboard'
 import AssetList from './components/AssetList'
@@ -7,16 +7,16 @@ import AssetForm from './components/AssetForm'
 import Maintenance from './components/Maintenance'
 import SoftwareLicenses from './components/SoftwareLicenses'
 import Sidebar from './components/Sidebar'
-import Login from "./pages/login"
-import Signup from "./pages/Signup"
+import Login from "./pages/Login"
+import UsersManagement from './components/UsersManagement'
+import Reports from './components/Reports'
 import Department from './pages/Departments'
-
+import { FaUsers, FaFileAlt } from 'react-icons/fa'
 
 // Protected Route Component - checks for authentication token
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
   
- // Redirect to login if no token exists
   if (!token) {
     return <Navigate to="/" replace />;
   }
@@ -26,7 +26,6 @@ function ProtectedRoute({ children }) {
 
 // Main application component that contains all the business logic
 function MainApp() {
-  const [currentView, setCurrentView] = useState('dashboard')
   const [assets, setAssets] = useState([])
   const [maintenance, setMaintenance] = useState([])
   const [licenses, setLicenses] = useState([])
@@ -34,10 +33,60 @@ function MainApp() {
   const [error, setError] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [user, setUser] = useState(null)
+  
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen)
   }
+
+  // Get current view from URL path
+  const getCurrentView = () => {
+    const path = location.pathname
+    if (path === '/dashboard') return 'dashboard'
+    if (path === '/assets') return 'assets'
+    if (path === '/assets/create') return 'create'
+    if (path === '/maintenance') return 'maintenance'
+    if (path === '/licenses') return 'licenses'
+    if (path === '/departments') return 'departments'
+    if (path === '/users') return 'users'
+    if (path === '/reports') return 'reports'
+    return 'dashboard'
+  }
+
+  const currentView = getCurrentView()
+
+  // Navigation function
+  const navigateTo = (view) => {
+    const routes = {
+      dashboard: '/dashboard',
+      assets: '/assets',
+      create: '/assets/create',
+      maintenance: '/maintenance',
+      licenses: '/licenses',
+      departments: '/departments',
+      users: '/users',
+      reports: '/reports'
+    }
+    navigate(routes[view] || '/dashboard')
+  }
+
+  // Enhanced menu items with role-based access
+  const menuItems = [
+    { id: 'dashboard', icon: FaUsers, label: 'Dashboard', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'assets', icon: FaUsers, label: 'Assets', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'maintenance', icon: FaUsers, label: 'Maintenance', roles: ['Admin', 'Manager'] },
+    { id: 'licenses', icon: FaUsers, label: 'Licenses', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'departments', icon: FaUsers, label: 'Departments', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'users', icon: FaUsers, label: 'User Management', roles: ['Admin'] },
+    { id: 'reports', icon: FaFileAlt, label: 'Reports', roles: ['Admin', 'Manager'] },
+  ]
+
+  // Filter menu items based on user role
+  const filteredMenuItems = menuItems.filter(item => 
+    user ? item.roles.includes(user.role) : false
+  )
 
   // Fetch current user info from API
   const fetchUser = async () => {
@@ -48,7 +97,6 @@ function MainApp() {
       console.error('Error fetching user:', err)
     }
   }
-
 
   // Fetch all assets from API
   const fetchAssets = async () => {
@@ -85,38 +133,78 @@ function MainApp() {
     }
   }
 
+  // Fetch all data
+  const fetchAllData = async () => {
+    await fetchAssets()
+    await fetchMaintenance()
+    await fetchLicenses()
+  }
+
   // Fetch initial data when component mounts
   useEffect(() => {
     fetchUser()
-    fetchAssets()
-    fetchMaintenance()
-    fetchLicenses()
+    fetchAllData()
   }, [])
 
- // Handle creating a new asset
+  // Handle creating a new asset
   const handleCreateAsset = async (assetData) => {
     try {
       setError('')
       await axiosInstance.post('/assets', assetData)
       await fetchAssets()
-      setCurrentView('dashboard')
+      navigateTo('assets')
       alert('Asset created successfully!')
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create asset')
     }
   }
 
-  // Handle deleting an asset with confirmation
-  const handleDeleteAsset = async (assetId) => {
-    if (window.confirm('Are you sure you want to delete this asset?')) {
-      try {
-        setError('')
-        await axiosInstance.delete(`/assets/${assetId}`)
-        await fetchAssets()
-        alert('Asset deleted successfully!')
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to delete asset')
-      }
+  // Handle transferring an asset (REPLACED DELETE)
+  const handleTransferAsset = async (assetId, transferData) => {
+    try {
+      setError('')
+      await axiosInstance.post(`/assets/${assetId}/assign`, transferData)
+      await fetchAssets()
+      
+      // Get the assigned user info for notification
+      const assignedUser = await axiosInstance.get(`/admin/users/${transferData.assigned_to_id}`)
+      
+      alert(`Asset transferred successfully to ${assignedUser.data.email}! Notification has been sent.`)
+      return true
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to transfer asset')
+      return false
+    }
+  }
+
+  // Handle retiring an asset (soft delete for auditing)
+  const handleRetireAsset = async (assetId) => {
+    if (!window.confirm('Are you sure you want to retire this asset? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setError('')
+      await axiosInstance.patch(`/assets/${assetId}`, {
+        status: 'Retired',
+        assignee_id: null
+      })
+      await fetchAssets()
+      alert('Asset retired successfully! It has been removed from active inventory but preserved for auditing.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to retire asset')
+    }
+  }
+
+  // Handle returning an asset to available pool
+  const handleReturnAsset = async (assetId) => {
+    try {
+      setError('')
+      await axiosInstance.post(`/assets/${assetId}/return`)
+      await fetchAssets()
+      alert('Asset returned successfully! It is now available for reassignment.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to return asset')
     }
   }
 
@@ -126,7 +214,7 @@ function MainApp() {
       setError('')
       await axiosInstance.post('/maintenance', maintenanceData)
       await fetchMaintenance()
-      await fetchAssets()
+      await fetchAssets() // Refresh assets to update status if needed
       alert('Maintenance record added successfully!')
       return true
     } catch (err) {
@@ -135,7 +223,7 @@ function MainApp() {
     }
   }
 
- // Handle adding a new software license
+  // Handle adding a new software license
   const handleAddLicense = async (licenseData) => {
     try {
       setError('')
@@ -149,133 +237,180 @@ function MainApp() {
     }
   }
 
-  // Handle deleting a software license with confirmation
-  const handleDeleteLicense = async (licenseId) => {
-    if (window.confirm('Are you sure you want to delete this license?')) {
-      try {
-        setError('')
-        await axiosInstance.delete(`/licenses/${licenseId}`)
-        await fetchLicenses()
-        alert('License deleted successfully!')
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to delete license')
-      }
-    }
-  }
-
- // Handle deleting a maintenance record with confirmation
-  const handleDeleteMaintenance = async (maintenanceId) => {  
-    if (window.confirm('Are you sure you want to delete this maintenance record?')) {
-      try {
-        setError('')
-        await axiosInstance.delete(`/maintenance/${maintenanceId}`)
-        await fetchMaintenance()
-        alert('Maintenance record deleted successfully!')
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to delete maintenance record')
-      }
-    }
-  }
-
   // Handle user logout with confirmation
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
       localStorage.removeItem('token')
+      localStorage.removeItem('user')
       window.location.href = '/'
     }
   }
 
+  // Check if user has permission for specific actions
+  const hasPermission = (requiredRole) => {
+    if (!user) return false
+    const roleHierarchy = { 'Viewer': 1, 'Manager': 2, 'Admin': 3 }
+    return roleHierarchy[user.role] >= roleHierarchy[requiredRole]
+  }
+
   return (
-  <div className="app-container">
-    {/* Sidebar */}
-    <Sidebar 
-      currentView={currentView} 
-      setCurrentView={setCurrentView}
-      isSidebarOpen={isSidebarOpen}
-      toggleSidebar={toggleSidebar}
-      onLogout={handleLogout}
-    />
+    <div className="app-container">
+      {/* Sidebar */}
+      <Sidebar 
+        currentView={currentView} 
+        setCurrentView={navigateTo}
+        isSidebarOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+        onLogout={handleLogout}
+        menuItems={filteredMenuItems}
+        user={user}
+      />
 
-    {/* Main Content */}
-    <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-      {error && (
-        <div className="alert alert-danger">
-          {error}
-        </div>
-      )}
-
-      {currentView === 'dashboard' && (
-        <>
-          {/* Header only for Dashboard */}
-          <div className="header">
-            <h1>AssetHub</h1>
-            <div className="user-info">
-              <span>Welcome, {user?.email || 'User'}</span>
-            </div>
+      {/* Main Content */}
+      <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
+        {error && (
+          <div className="alert alert-danger">
+            {error}
+            <button 
+              onClick={() => setError('')}
+              style={{ float: 'right', background: 'none', border: 'none', fontSize: '18px' }}
+            >
+              ×
+            </button>
           </div>
-          
+        )}
+
+        {/* Header for all pages */}
+        <div className="header">
+          <div>
+            <h1>AssetHub - IT Asset Management</h1>
+            <p style={{ color: '#6c757d', margin: 0 }}>
+              {currentView.charAt(0).toUpperCase() + currentView.slice(1)} 
+              {user?.company ? ` • ${user.company}` : ''}
+            </p>
+          </div>
+          <div className="user-info">
+            <span>Welcome, {user?.email || 'User'}</span>
+            <span className="user-role" style={{
+              background: user?.role === 'Admin' ? '#dc3545' : 
+                          user?.role === 'Manager' ? '#fd7e14' : '#6c757d',
+              color: 'white',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>
+              {user?.role || 'User'}
+            </span>
+          </div>
+        </div>
+
+        {/* Role-based access control for views */}
+        {currentView === 'dashboard' && (
           <Dashboard 
             assets={assets}
             maintenance={maintenance}
             licenses={licenses}
-            onNavigate={setCurrentView}
+            onNavigate={navigateTo}
+            user={user}
           />
-        </>
-      )}
+        )}
 
-      {currentView === 'assets' && (
-        <AssetList 
-          assets={assets}
-          loading={loading}
-          onDelete={handleDeleteAsset}
-          onRefresh={fetchAssets}
-          onNewAssetClick={() => setCurrentView('create')}
-        />
-      )}
+        {currentView === 'assets' && hasPermission('Viewer') && (
+          <AssetList 
+            assets={assets}
+            loading={loading}
+            onRefresh={fetchAssets}
+            onNewAssetClick={() => navigateTo('create')}
+            onTransferAsset={handleTransferAsset}
+            onRetireAsset={handleRetireAsset}
+            onReturnAsset={handleReturnAsset}
+            user={user}
+          />
+        )}
 
-      {currentView === 'maintenance' && (
-        <Maintenance 
-          assets={assets}
-          maintenance={maintenance}
-          onAddMaintenance={handleAddMaintenance}
-          onDeleteMaintenance={handleDeleteMaintenance} 
-          onRefresh={() => {
-            fetchMaintenance()
-            fetchAssets()
-          }}
-        />
-      )}
+        {currentView === 'maintenance' && hasPermission('Manager') && (
+          <Maintenance 
+            assets={assets}
+            maintenance={maintenance}
+            onAddMaintenance={handleAddMaintenance}
+            onRefresh={() => {
+              fetchMaintenance()
+              fetchAssets()
+            }}
+            user={user}
+          />
+        )}
 
-      {currentView === 'licenses' && (
-        <SoftwareLicenses 
-          licenses={licenses}
-          onAddLicense={handleAddLicense}
-          onDeleteLicense={handleDeleteLicense}
-          onRefresh={fetchLicenses}
-        />
-      )}
+        {currentView === 'licenses' && hasPermission('Viewer') && (
+          <SoftwareLicenses 
+            licenses={licenses}
+            onAddLicense={handleAddLicense}
+            onRefresh={fetchLicenses}
+            user={user}
+          />
+        )}
 
-      {currentView === 'create' && (
-        <AssetForm 
-          onSubmit={handleCreateAsset}
-          onCancel={() => setCurrentView('dashboard')}
-        />
-      )}
+        {currentView === 'create' && hasPermission('Manager') && (
+          <AssetForm 
+            onSubmit={handleCreateAsset}
+            onCancel={() => navigateTo('assets')}
+            user={user}
+          />
+        )}
 
-      {currentView === 'departments' && (
-        <Department />
-      )}
+        {currentView === 'departments' && hasPermission('Viewer') && (
+          <Department 
+            user={user}
+          />
+        )}
+
+        {currentView === 'users' && hasPermission('Admin') && (
+          <UsersManagement 
+            user={user}
+          />
+        )}
+
+        {currentView === 'reports' && hasPermission('Manager') && (
+          <Reports 
+            user={user}
+          />
+        )}
+
+        {/* Access denied messages */}
+        {currentView === 'users' && !hasPermission('Admin') && (
+          <div className="alert alert-danger">
+            <h3>Access Denied</h3>
+            <p>You need Admin privileges to access User Management.</p>
+          </div>
+        )}
+
+        {currentView === 'reports' && !hasPermission('Manager') && (
+          <div className="alert alert-danger">
+            <h3>Access Denied</h3>
+            <p>You need Manager or Admin privileges to access Reports.</p>
+          </div>
+        )}
+
+        {currentView === 'maintenance' && !hasPermission('Manager') && (
+          <div className="alert alert-danger">
+            <h3>Access Denied</h3>
+            <p>You need Manager or Admin privileges to access Maintenance.</p>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-)
+  )
 }
 
+// Main App Router
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        {/* Signup route removed - only admin can create users */}
+        
         <Route 
           path="/dashboard" 
           element={
@@ -284,6 +419,72 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        
+        <Route 
+          path="/assets" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/assets/create" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/maintenance" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/licenses" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/departments" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/users" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/reports" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Redirect any unknown routes to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
   )

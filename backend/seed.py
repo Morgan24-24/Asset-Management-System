@@ -11,7 +11,7 @@ def create_tables():
     """Create all database tables"""
     print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ Tables created successfully!")
+    print(">>> Tables created successfully!")
 
 def create_admin_user(db: Session):
     """Create the first admin user"""
@@ -22,8 +22,8 @@ def create_admin_user(db: Session):
     # Check if admin already exists
     existing_admin = db.query(User).filter(User.email == admin_email).first()
     if existing_admin:
-        print(f"⚠️  Admin user already exists: {admin_email}")
-        return
+     print(f">>> Admin user already exists: {admin_email}")
+     return
     
     # Create admin user
     admin = User(
@@ -38,10 +38,10 @@ def create_admin_user(db: Session):
     db.commit()
     db.refresh(admin)
     
-    print(f"✅ Admin user created!")
+    print(f">>> Admin user created!")
     print(f"   Email: {admin_email}")
     print(f"   Password: {admin_password}")
-    print(f"   ⚠️  CHANGE THIS PASSWORD AFTER FIRST LOGIN!")
+    print("   >>> CHANGE THIS PASSWORD AFTER FIRST LOGIN!")
 
 def create_default_asset_types(db: Session):
     """Create default asset types"""
@@ -65,7 +65,7 @@ def create_default_asset_types(db: Session):
             db.add(asset_type)
     
     db.commit()
-    print("✅ Default asset types created!")
+    print(">>> Default asset types created!")
 
 def create_default_brands(db: Session):
     """Create default brands"""
@@ -82,12 +82,12 @@ def create_default_brands(db: Session):
             db.add(brand)
     
     db.commit()
-    print("✅ Default brands created!")
+    print(">>> Default brands created!")
 
 def main():
     """Main seed function"""
     print("\n" + "="*50)
-    print("🌱 SEEDING DATABASE")
+    print(">>> SEEDING DATABASE")
     print("="*50 + "\n")
     
     # Create tables
@@ -103,7 +103,7 @@ def main():
         create_default_brands(db)
         
         print("\n" + "="*50)
-        print("✅ DATABASE SEEDING COMPLETE!")
+        print(">>> DATABASE SEEDING COMPLETE!")
         print("="*50)
         print("\n📝 Next steps:")
         print("1. Start the server: python main.py")
@@ -112,8 +112,8 @@ def main():
         print("\n")
         
     except Exception as e:
-        print(f"\n❌ Error during seeding: {e}")
-        db.rollback()
+       print(f">>> Error during seeding: {e}")
+       db.rollback()
     finally:
         db.close()
 

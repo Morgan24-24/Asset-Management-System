@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-// Base URL for API calls
 const API_BASE = 'http://127.0.0.1:8000';
 
 function Login() {
@@ -12,84 +11,103 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-   // Handle login form submission
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      // Send as form data (OAuth2PasswordRequestForm expects this)
       const formData = new URLSearchParams();
-      formData.append('username', email); // OAuth2 uses 'username' field
+      formData.append('username', email);
       formData.append('password', password);
 
-      // Call the /login endpoint (not /auth/login)
       const response = await axios.post(`${API_BASE}/login`, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
 
-      // Store the token in localStorage
       localStorage.setItem("token", response.data.access_token);
       
+      // Fetch user info to store role/company
+      const userResponse = await axios.get(`${API_BASE}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${response.data.access_token}`
+        }
+      });
+      
+      localStorage.setItem("user", JSON.stringify(userResponse.data));
+      
       console.log("Login successful!");
-      // Send user to the dashboard
-      navigate("/dashboard"); 
+      navigate("/dashboard");
 
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.response?.data?.detail || "Login failed. Please try again.");
+      setError(err.response?.data?.detail || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <form
-        onSubmit={handleLogin}
-        className="p-8 bg-white shadow-lg rounded-2xl w-96"
-      >
-        <h2 className="mb-6 text-2xl font-bold text-center">AssetHub</h2>
+    <div className="login-container">
+      <div className="login-card">
+        <div className="login-header">
+          <div className="logo">
+            <svg width="40" height="40" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="#4361ee"/>
+              <path d="M16 8L8 12v8c0 5 3.5 7 8 7s8-2 8-7v-8l-8-4z" fill="white"/>
+              <circle cx="16" cy="16" r="3" fill="#4361ee"/>
+            </svg>
+            <h1>AssetHub</h1>
+          </div>
+          <p className="login-subtitle">IT Asset Management System</p>
+        </div>
         
         {error && (
-          <div className="px-4 py-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
+          <div className="alert alert-error">
             {error}
           </div>
         )}
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 mb-4 border rounded"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 mb-6 border rounded"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full p-3 text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-blue-400"
-        >
-          {loading ? "Logging in..." : "Login"}
-        </button>
-        <p className="mt-4 text-sm text-center">
-          Don't have an account?{" "}
-          <Link to="/signup" className="text-blue-600 hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </form>
+        <form onSubmit={handleLogin} className="login-form">
+          <div className="form-group">
+            <label>Email Address</label>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary btn-block"
+          >
+            {loading ? "Signing In..." : "Sign In"}
+          </button>
+        </form>
+
+        <div className="login-footer">
+          <p className="text-muted text-center">
+            Contact your administrator for access credentials
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

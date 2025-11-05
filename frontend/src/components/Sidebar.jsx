@@ -4,24 +4,40 @@ import {
   FaDesktop, 
   FaWrench, 
   FaFileAlt, 
-  FaPlus,
   FaBars,
   FaTimes,
   FaSignOutAlt,
-  FaBuilding
+  FaBuilding,
+  FaUsers,
+  FaChartBar,
+  FaUserCircle
 } from 'react-icons/fa'
 import './Sidebar.css'
 
 // Sidebar component for navigation and user actions
-const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, onLogout }) => {
-  // Define menu items with their icons and labels
-  const menuItems = [
-    { id: 'dashboard', icon: FaTachometerAlt, label: 'Dashboard' },
-    { id: 'assets', icon: FaDesktop, label: 'Assets' },
-    { id: 'maintenance', icon: FaWrench, label: 'Maintenance' },
-    { id: 'licenses', icon: FaFileAlt, label: 'Licenses' },
-    { id: 'departments', icon: FaBuilding, label: 'Departments' },
+const Sidebar = ({ 
+  currentView, 
+  setCurrentView, 
+  isSidebarOpen, 
+  toggleSidebar, 
+  onLogout,
+  menuItems = [],
+  user 
+}) => {
+  // Default menu items with role-based access
+  const defaultMenuItems = [
+    { id: 'dashboard', icon: FaTachometerAlt, label: 'Dashboard', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'assets', icon: FaDesktop, label: 'Assets', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'maintenance', icon: FaWrench, label: 'Maintenance', roles: ['Admin', 'Manager'] },
+    { id: 'licenses', icon: FaFileAlt, label: 'Licenses', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'departments', icon: FaBuilding, label: 'Departments', roles: ['Admin', 'Manager', 'Viewer'] },
+    { id: 'users', icon: FaUsers, label: 'User Management', roles: ['Admin'] },
+    { id: 'reports', icon: FaChartBar, label: 'Reports', roles: ['Admin', 'Manager'] },
   ]
+
+  // Use provided menuItems or default, filtered by user role
+  const effectiveMenuItems = menuItems.length > 0 ? menuItems : 
+    defaultMenuItems.filter(item => user ? item.roles.includes(user.role) : false)
 
   // Handle navigation to different views
   const handleNavigation = (view) => {
@@ -30,6 +46,28 @@ const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, on
     if (window.innerWidth <= 768) {
       toggleSidebar()
     }
+  }
+
+  // Get user role color
+  const getRoleColor = (role) => {
+    switch (role) {
+      case 'Admin': return '#dc3545'
+      case 'Manager': return '#fd7e14'
+      case 'Viewer': return '#6c757d'
+      default: return '#6c757d'
+    }
+  }
+
+  // Get user initials for avatar
+  const getUserInitials = (email) => {
+    if (!email) return 'U'
+    return email.charAt(0).toUpperCase()
+  }
+
+  // Get user display name
+  const getUserDisplayName = (email) => {
+    if (!email) return 'User'
+    return email.split('@')[0]
   }
 
   return (
@@ -54,12 +92,22 @@ const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, on
                 <circle cx="16" cy="16" r="3" fill="#4361ee"/>
               </svg>
             </div>
-            <h2>AssetHub</h2>
+            <div>
+              <h2>AssetHub</h2>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: 'rgba(255,255,255,0.7)', 
+                margin: 0,
+                marginTop: '2px'
+              }}>
+                Asset Management
+              </p>
+            </div>
           </div>
         </div>
         
         <nav className="sidebar-menu">
-          {menuItems.map(({ id, icon: Icon, label }) => (
+          {effectiveMenuItems.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               className={`menu-item ${currentView === id ? 'active' : ''}`}
@@ -69,6 +117,35 @@ const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, on
               <Icon className="menu-icon" size={18} />
               <span className="menu-text">{label}</span>
               {currentView === id && <span className="active-indicator" />}
+              
+              {/* Role badges for admin-only features */}
+              {id === 'users' && (
+                <span className="role-badge" style={{
+                  background: '#dc3545',
+                  color: 'white',
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  borderRadius: '8px',
+                  marginLeft: 'auto',
+                  fontWeight: 'bold'
+                }}>
+                  Admin
+                </span>
+              )}
+              
+              {(id === 'reports' || id === 'maintenance') && user?.role === 'Manager' && (
+                <span className="role-badge" style={{
+                  background: '#fd7e14',
+                  color: 'white',
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  borderRadius: '8px',
+                  marginLeft: 'auto',
+                  fontWeight: 'bold'
+                }}>
+                  Manager
+                </span>
+              )}
             </button>
           ))}
           
@@ -84,10 +161,43 @@ const Sidebar = ({ currentView, setCurrentView, isSidebarOpen, toggleSidebar, on
 
         <div className="sidebar-footer">
           <div className="user-badge">
-            <div className="user-avatar">A</div>
+            <div 
+              className="user-avatar"
+              style={{ 
+                background: user ? getRoleColor(user.role) : '#4361ee',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                fontSize: '1rem'
+              }}
+            >
+              {user ? getUserInitials(user.email) : 'U'}
+            </div>
             <div className="user-info">
-              <span className="user-name">Admin</span>
-              <span className="user-status">Online</span>
+              <span className="user-name">
+                {user ? getUserDisplayName(user.email) : 'User'}
+              </span>
+              <span className="user-status">
+                <span style={{
+                  background: user ? getRoleColor(user.role) : '#28a745',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  marginRight: '5px'
+                }}></span>
+                {user ? user.role : 'User'}
+                {user?.company && (
+                  <div style={{
+                    fontSize: '0.7rem',
+                    color: 'rgba(255,255,255,0.6)',
+                    marginTop: '2px'
+                  }}>
+                    {user.company}
+                  </div>
+                )}
+              </span>
             </div>
           </div>
         </div>

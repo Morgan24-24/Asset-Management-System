@@ -12,7 +12,7 @@ from models import (
 )
 from schemas import (
     AssetCreate, AssetUpdate, AssetResponse,
-    MaintenanceCreate, MaintenanceResponse,
+    MaintenanceCreate, MaintenanceResponse, PermissionBulkUpdate,
     SoftwareLicenseCreate, SoftwareLicenseResponse,
     DepartmentCreate, DepartmentUpdate, DepartmentResponse,
     AssetTypeCreate, AssetTypeResponse,
@@ -173,6 +173,20 @@ def get_me(db: Session = Depends(get_db), current_user: dict = Depends(get_curre
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+# ==================== USER DROPDOWN ROUTES (FOR ALL AUTHENTICATED USERS) ====================
+
+@app.get("/users/active", response_model=List[UserResponse])
+def get_active_users(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)  # Any authenticated user
+):
+    """Get active users for dropdowns (available to all authenticated users)"""
+    users = db.query(User).filter(
+        User.is_active == True
+    ).order_by(User.email).all()
+    return users
+
 
 # ==================== USER MANAGEMENT ROUTES (ADMIN ONLY) ====================
 
@@ -359,7 +373,7 @@ def get_brands(db: Session = Depends(get_db), current_user: dict = Depends(get_c
 @app.get("/assets", response_model=List[AssetResponse])
 def get_assets(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["view_assets"])),
+     current_user: dict = Depends(get_current_user),
     skip: int = 0,
     limit: int = 100,
     brand_id: Optional[int] = None,
@@ -413,7 +427,7 @@ def get_asset(
 def create_asset(
     asset: AssetCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["create_assets"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """Create a new asset with auto-generated ID"""
     # Check if serial number already exists
@@ -654,7 +668,7 @@ def get_asset_history(
 def add_maintenance(
     record: MaintenanceCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["create_maintenance"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """Add a maintenance record"""
     asset = db.query(Asset).filter(Asset.id == record.asset_id).first()
@@ -682,7 +696,7 @@ def add_maintenance(
 @app.get("/maintenance", response_model=List[MaintenanceResponse])
 def get_maintenance(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["view_maintenance"])),
+    current_user: dict = Depends(get_current_user),
     skip: int = 0,
     limit: int = 100
 ):
@@ -810,7 +824,7 @@ def delete_license(
 def create_department(
     dept: DepartmentCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["create_departments"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Create a new department (admin only)"""
     existing = db.query(Department).filter(Department.code == dept.code).first()
@@ -832,7 +846,7 @@ def create_department(
 @app.get("/departments", response_model=List[DepartmentResponse])
 def get_departments(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["view_departments"]))
+    current_user: dict = Depends(get_current_user)
 ):
     """Get all departments"""
     return db.query(Department).filter(Department.is_active == True).all()
@@ -1163,7 +1177,7 @@ def revoke_permission(
 @app.post("/users/{user_id}/permissions/bulk")
 def set_user_permissions(
     user_id: int,
-    permission_ids: List[int],
+    permission_data: PermissionBulkUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(["manage_permissions"]))
 ):
@@ -1178,7 +1192,7 @@ def set_user_permissions(
     db.query(UserPermission).filter(UserPermission.user_id == user_id).delete()
     
     # Add new permissions
-    for perm_id in permission_ids:
+    for perm_id in permission_data.permission_ids:
         permission = db.query(Permission).filter(Permission.id == perm_id).first()
         if permission:
             user_perm = UserPermission(
