@@ -28,22 +28,29 @@ class ActivityType(str, Enum):
     ASSIGN = "ASSIGN"
     TRANSFER = "TRANSFER"
     MAINTENANCE = "MAINTENANCE"
+    LOGIN = "LOGIN" 
+    LOGOUT = "LOGOUT" 
+    EXPORTLOGS = "EXPORTLOGS"
+
 
 # ==================== USER SCHEMAS ====================
 
 class UserBase(BaseModel):
     email: EmailStr
+    display_name: Optional[str] = None
     company: str
     role: UserRole
 
 class UserCreate(BaseModel):
     email: EmailStr
+    display_name: Optional[str] = None
     company: str
     role: UserRole
     password: str
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
+    display_name: Optional[str] = None
     company: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
@@ -168,6 +175,8 @@ class AssetResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: Optional[datetime]
+    assignee: Optional[UserResponse] = None
+    department: Optional[DepartmentResponse] = None
     
     class Config:
         from_attributes = True
@@ -223,7 +232,6 @@ class SoftwareLicenseResponse(BaseModel):
 # ==================== ASSET ASSIGNMENT SCHEMAS ====================
 
 class AssetAssignmentCreate(BaseModel):
-    asset_id: str
     assigned_to_id: int
     notes: Optional[str] = None
 

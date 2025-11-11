@@ -35,14 +35,14 @@ const AssetForm = ({ onSubmit, onCancel, user }) => {
           axiosInstance.get('/asset-types'),
           axiosInstance.get('/brands'),
           axiosInstance.get('/departments'),
-          axiosInstance.get('/users/active')
+          axiosInstance.get('/admin/users')
         ])
         
         setDropdownData({
           assetTypes: assetTypesRes.data,
           brands: brandsRes.data,
           departments: departmentsRes.data,
-          users: usersRes.data
+          users: usersRes.data.filter(user => user.is_active)
         })
       } catch (err) {
         console.error('Failed to fetch dropdown data:', err)

@@ -1,43 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axiosInstance from '../api/axios';
 
 const PermissionsCheckbox = ({ selectedPermissions, onPermissionChange, userRole }) => {
-  // Define permissions by category
-  const permissionCategories = {
-    "Asset Management": [
-      { id: "view_assets", name: "View Assets", description: "Can view assets" },
-      { id: "create_assets", name: "Create Assets", description: "Can create new assets" },
-      { id: "edit_assets", name: "Edit Assets", description: "Can edit existing assets" },
-      { id: "delete_assets", name: "Delete Assets", description: "Can delete assets" },
-      { id: "assign_assets", name: "Assign Assets", description: "Can assign assets to users" },
-      { id: "transfer_assets", name: "Transfer Assets", description: "Can transfer assets between users" }
-    ],
-    "Maintenance": [
-      { id: "view_maintenance", name: "View Maintenance", description: "Can view maintenance records" },
-      { id: "create_maintenance", name: "Create Maintenance", description: "Can create maintenance records" },
-      { id: "delete_maintenance", name: "Delete Maintenance", description: "Can delete maintenance records" }
-    ],
-    "Departments": [
-      { id: "view_departments", name: "View Departments", description: "Can view departments" },
-      { id: "create_departments", name: "Create Departments", description: "Can create departments" },
-      { id: "edit_departments", name: "Edit Departments", description: "Can edit departments" },
-      { id: "delete_departments", name: "Delete Departments", description: "Can delete departments" }
-    ],
-    "Reports": [
-      { id: "view_reports", name: "View Reports", description: "Can view reports" },
-      { id: "generate_reports", name: "Generate Reports", description: "Can generate reports" },
-      { id: "export_reports_pdf", name: "Export PDF", description: "Can export reports as PDF" },
-      { id: "export_reports_excel", name: "Export Excel", description: "Can export reports as Excel" },
-      { id: "view_financial_reports", name: "View Financial Reports", description: "Can view financial reports" }
-    ],
-    "System": [
-      { id: "view_activity_logs", name: "View Activity Logs", description: "Can view system activity logs" },
-      { id: "manage_permissions", name: "Manage Permissions", description: "Can manage user permissions" },
-      { id: "view_users", name: "View Users", description: "Can view other users" }
-    ]
-  };
+  const [allPermissions, setAllPermissions] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Preset permissions based on role
-  const rolePresets = {
+  // Fetch permissions from backend
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await axiosInstance.get('/permissions')
+        setAllPermissions(response.data)
+      } catch (err) {
+        console.error('Failed to fetch permissions:', err)
+        alert('Failed to load permissions. Please refresh the page.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPermissions()
+  }, [])
+
+  // Group permissions by category
+  const groupedPermissions = allPermissions.reduce((acc, perm) => {
+    if (!acc[perm.category]) {
+      acc[perm.category] = []
+    }
+    acc[perm.category].push(perm)
+    return acc
+  }, {})
+
+  // Preset permissions based on role (using names, then convert to IDs)
+  const rolePresetNames = {
     Manager: [
       "view_assets", "create_assets", "edit_assets", "assign_assets", "transfer_assets",
       "view_reports", "generate_reports", "export_reports_pdf", "export_reports_excel",
@@ -49,8 +43,12 @@ const PermissionsCheckbox = ({ selectedPermissions, onPermissionChange, userRole
   };
 
   const handleRolePreset = (role) => {
-    if (role && rolePresets[role]) {
-      onPermissionChange(rolePresets[role]);
+    if (role && rolePresetNames[role]) {
+      // Convert permission names to IDs
+      const permissionIds = allPermissions
+        .filter(p => rolePresetNames[role].includes(p.name))
+        .map(p => p.id)
+      onPermissionChange(permissionIds)
     }
   };
 
@@ -63,6 +61,10 @@ const PermissionsCheckbox = ({ selectedPermissions, onPermissionChange, userRole
   };
 
   const isChecked = (permissionId) => selectedPermissions.includes(permissionId);
+
+  if (loading) {
+    return <div className="loading">Loading permissions...</div>
+  }
 
   return (
     <div className="permissions-container">
@@ -98,7 +100,7 @@ const PermissionsCheckbox = ({ selectedPermissions, onPermissionChange, userRole
 
       {/* Permissions Grid */}
       <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '15px' }}>
-        {Object.entries(permissionCategories).map(([category, perms]) => (
+        {Object.entries(groupedPermissions).map(([category, perms]) => (
           <div key={category} style={{ marginBottom: '25px' }}>
             <h5 style={{ 
               padding: '8px 12px', 

@@ -28,7 +28,7 @@ const SoftwareLicenses = ({ licenses, onAddLicense, onRefresh, user }) => {
       try {
         const [departmentsRes, usersRes] = await Promise.all([
           axiosInstance.get('/departments'),
-          axiosInstance.get('/users/active')
+          axiosInstance.get('/admin/users') 
         ])
         
         setDropdownData({

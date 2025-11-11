@@ -9,10 +9,12 @@ import {
   FaSignOutAlt,
   FaBuilding,
   FaUsers,
-  FaChartBar,
-  FaUserCircle
+  FaChartBar, 
+  FaUserCircle,
+  FaHistory
 } from 'react-icons/fa'
 import './Sidebar.css'
+import { getDisplayName, getUserInitials } from '../utils/helpers'
 
 // Sidebar component for navigation and user actions
 const Sidebar = ({ 
@@ -32,6 +34,7 @@ const Sidebar = ({
     { id: 'licenses', icon: FaFileAlt, label: 'Licenses', roles: ['Admin', 'Manager', 'Viewer'] },
     { id: 'departments', icon: FaBuilding, label: 'Departments', roles: ['Admin', 'Manager', 'Viewer'] },
     { id: 'users', icon: FaUsers, label: 'User Management', roles: ['Admin'] },
+    { id: 'activity-logs', icon: FaHistory, label: 'Activity Logs', roles: ['Admin', 'Manager'] },
     { id: 'reports', icon: FaChartBar, label: 'Reports', roles: ['Admin', 'Manager'] },
   ]
 
@@ -58,31 +61,19 @@ const Sidebar = ({
     }
   }
 
-  // Get user initials for avatar
-  const getUserInitials = (email) => {
-    if (!email) return 'U'
-    return email.charAt(0).toUpperCase()
-  }
-
-  // Get user display name
-  const getUserDisplayName = (email) => {
-    if (!email) return 'User'
-    return email.split('@')[0]
-  }
-
   return (
     <>
-      {/* Hamburger Menu Button - Outside sidebar */}
-      <button 
-        className="hamburger-menu"
-        onClick={toggleSidebar}
-        aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
-      >
-        {isSidebarOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
-      </button>
-
       {/* Sidebar */}
       <div className={`sidebar ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+        {/* Hamburger Menu Button - Inside sidebar */}
+        <button 
+          className="hamburger-menu-inside"
+          onClick={toggleSidebar}
+          aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
+        >
+          {isSidebarOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
+        </button>
+
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <div className="logo-icon">
@@ -117,35 +108,6 @@ const Sidebar = ({
               <Icon className="menu-icon" size={18} />
               <span className="menu-text">{label}</span>
               {currentView === id && <span className="active-indicator" />}
-              
-              {/* Role badges for admin-only features */}
-              {id === 'users' && (
-                <span className="role-badge" style={{
-                  background: '#dc3545',
-                  color: 'white',
-                  fontSize: '10px',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  marginLeft: 'auto',
-                  fontWeight: 'bold'
-                }}>
-                  Admin
-                </span>
-              )}
-              
-              {(id === 'reports' || id === 'maintenance') && user?.role === 'Manager' && (
-                <span className="role-badge" style={{
-                  background: '#fd7e14',
-                  color: 'white',
-                  fontSize: '10px',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  marginLeft: 'auto',
-                  fontWeight: 'bold'
-                }}>
-                  Manager
-                </span>
-              )}
             </button>
           ))}
           
@@ -162,41 +124,33 @@ const Sidebar = ({
         <div className="sidebar-footer">
           <div className="user-badge">
             <div 
-              className="user-avatar"
-              style={{ 
-                background: user ? getRoleColor(user.role) : '#4361ee',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '1rem'
-              }}
-            >
-              {user ? getUserInitials(user.email) : 'U'}
-            </div>
-            <div className="user-info">
-              <span className="user-name">
-                {user ? getUserDisplayName(user.email) : 'User'}
-              </span>
-              <span className="user-status">
-                <span style={{
-                  background: user ? getRoleColor(user.role) : '#28a745',
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  display: 'inline-block',
-                  marginRight: '5px'
-                }}></span>
+  className="user-avatar"
+  style={{ 
+    background: user ? getRoleColor(user.role) : '#4361ee',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    fontSize: '1.2rem'
+  }}
+>
+  {user ? getUserInitials(user) : 'U'}
+</div>
+<div className="user-info">
+  <span className="user-name">
+    {user ? getDisplayName(user) : 'User'}
+  </span>
+              <span className="user-role-badge" style={{
+                display: 'inline-block',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                marginTop: '4px',
+                background: user ? getRoleColor(user.role) : '#6c757d',
+                color: 'white'
+              }}>
                 {user ? user.role : 'User'}
-                {user?.company && (
-                  <div style={{
-                    fontSize: '0.7rem',
-                    color: 'rgba(255,255,255,0.6)',
-                    marginTop: '2px'
-                  }}>
-                    {user.company}
-                  </div>
-                )}
               </span>
             </div>
           </div>

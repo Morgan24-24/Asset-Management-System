@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import timedelta, datetime
 from typing import Optional, List
 from database import engine, get_db
@@ -152,7 +152,7 @@ def login(
     # Log activity
     ip_address = request.client.host if request else None
     log_activity(
-        db, user.id, ActivityType.CREATE,
+        db, user.id, ActivityType.LOGIN,
         f"User {user.email} logged in",
         ip_address=ip_address
     )
@@ -173,6 +173,25 @@ def get_me(db: Session = Depends(get_db), current_user: dict = Depends(get_curre
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@app.post("/logout")
+def logout(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    request: Request = None
+):
+    """Log user logout activity"""
+    try:
+        ip_address = request.client.host if request else None
+        log_activity(
+            db, current_user["user_id"], ActivityType.LOGOUT,
+            f"User {current_user['email']} logged out",
+            ip_address=ip_address
+        )
+        return {"message": "Logged out successfully"}
+    except Exception as e:
+        print(f"Error logging logout: {e}")
+        return {"message": "Logout processed"}
 
 # ==================== USER DROPDOWN ROUTES (FOR ALL AUTHENTICATED USERS) ====================
 
@@ -384,7 +403,12 @@ def get_assets(
     include_deleted: bool = False
 ):
     """Get all assets with filtering"""
-    query = db.query(Asset)
+    query = db.query(Asset).options(
+    joinedload(Asset.assignee),
+    joinedload(Asset.department),
+    joinedload(Asset.asset_type),
+    joinedload(Asset.brand_obj)
+)
     
     # Hide deleted assets by default
     if not include_deleted:
@@ -645,22 +669,62 @@ def return_asset(
     
     return {"message": f"Asset {asset_id} returned successfully"}
 
-@app.get("/assets/{asset_id}/history", response_model=List[AssetAssignmentResponse])
+@app.get("/assets/{asset_id}/history")
 def get_asset_history(
     asset_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get assignment history for an asset"""
+    """Get assignment history for an asset (role-based access)"""
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     
-    assignments = db.query(AssetAssignment).filter(
-        AssetAssignment.asset_id == asset_id
-    ).order_by(AssetAssignment.assigned_date.desc()).all()
+    user_role = current_user.get("role")
     
-    return assignments
+    # Admin and Manager get full history
+    if user_role in ['Admin', 'Manager']:
+        assignments = db.query(AssetAssignment).filter(
+            AssetAssignment.asset_id == asset_id
+        ).order_by(AssetAssignment.assigned_date.desc()).all()
+        
+        # Format with user details
+        history = []
+        for assignment in assignments:
+            assigned_to = db.query(User).filter(User.id == assignment.assigned_to_id).first()
+            assigned_by = db.query(User).filter(User.id == assignment.assigned_by_id).first()
+            
+            history.append({
+                "id": assignment.id,
+                "asset_id": assignment.asset_id,
+                "assigned_to": assigned_to.email if assigned_to else "Unknown",
+                "assigned_by": assigned_by.email if assigned_by else "Unknown",
+                "assigned_date": assignment.assigned_date.strftime("%A, %B %d, %Y at %I:%M %p"),
+                "returned_date": assignment.returned_date.strftime("%A, %B %d, %Y at %I:%M %p") if assignment.returned_date else None,
+                "notes": assignment.notes,
+                "is_active": assignment.is_active
+            })
+        
+        return {
+            "asset_id": asset_id,
+            "full_access": True,
+            "history": history
+        }
+    
+    # Viewer gets only current assignment info
+    else:
+        current_assignee = None
+        if asset.assignee_id:
+            assignee = db.query(User).filter(User.id == asset.assignee_id).first()
+            current_assignee = assignee.email if assignee else "Unknown"
+        
+        return {
+            "asset_id": asset_id,
+            "full_access": False,
+            "current_assignee": current_assignee,
+            "status": asset.status.value,
+            "message": "Full assignment history is restricted to Manager and Admin roles."
+        }
 
 # ==================== MAINTENANCE ROUTES ====================
 
@@ -951,44 +1015,76 @@ def get_department_assets(
 @app.get("/activities", response_model=List[ActivityLogResponse])
 def get_activities(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),  # ✅ Admin/Manager only
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 25,  # Changed default to 25 per your request
     action_type: Optional[ActivityType] = None,
-    asset_id: Optional[str] = None
+    asset_id: Optional[str] = None,
+    user_id: Optional[int] = None,
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
 ):
-    """Get activity logs"""
+    """Get activity logs (Admin/Manager only)"""
     query = db.query(ActivityLog)
     
+    # Filter by action type
     if action_type:
         query = query.filter(ActivityLog.action_type == action_type)
+    
+    # Filter by asset
     if asset_id:
         query = query.filter(ActivityLog.asset_id == asset_id)
     
+    # Filter by user
+    if user_id:
+        query = query.filter(ActivityLog.user_id == user_id)
+    
+    # Search in description
+    if search:
+        query = query.filter(ActivityLog.description.ilike(f"%{search}%"))
+    
+    # Filter by date range
+    if start_date:
+        query = query.filter(ActivityLog.timestamp >= start_date)
+    if end_date:
+        query = query.filter(ActivityLog.timestamp <= end_date)
+    
+    # Get total count for pagination
+    total_count = query.count()
+    
+    # Get activities with pagination
     activities = query.order_by(ActivityLog.timestamp.desc()).offset(skip).limit(limit).all()
+    
     return activities
 
 @app.get("/activities/recent")
 def get_recent_activities(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    limit: int = 10
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])), 
+    limit: int = 25
 ):
-    """Get recent activities for dashboard"""
+    """Get recent activities (Admin/Manager only)"""
     activities = db.query(ActivityLog).order_by(
         ActivityLog.timestamp.desc()
     ).limit(limit).all()
     
-    # Format for frontend
+    # Format for frontend with full datetime
     formatted = []
     for activity in activities:
         user = db.query(User).filter(User.id == activity.user_id).first()
+        
+        # Format timestamp to show day, date, and time
+        timestamp_str = activity.timestamp.strftime("%A, %B %d, %Y at %I:%M %p") if activity.timestamp else "Unknown"
+        
         formatted.append({
             "id": activity.id,
             "user": user.email if user else "Unknown",
+            "user_id": activity.user_id,
             "action": activity.action_type.value,
             "description": activity.description,
             "timestamp": activity.timestamp,
+            "timestamp_formatted": timestamp_str,  # Human-readable format
             "asset_id": activity.asset_id
         })
     
@@ -1484,7 +1580,7 @@ def export_asset_inventory(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.CREATE,
+        db, current_user["user_id"], ActivityType.EXPORTLOGS,
         f"Exported asset inventory report ({format.upper()})"
     )
     
@@ -1547,7 +1643,7 @@ def export_depreciation_report(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.CREATE,
+        db, current_user["user_id"], ActivityType.EXPORTLOGS,
         f"Exported depreciation report ({format.upper()})"
     )
     
@@ -1612,7 +1708,7 @@ def export_maintenance_report(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.CREATE,
+        db, current_user["user_id"], ActivityType.EXPORTLOGS,
         f"Exported maintenance report ({format.upper()})"
     )
     
@@ -1670,7 +1766,7 @@ def export_department_report(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.CREATE,
+        db, current_user["user_id"], ActivityType.EXPORTLOGS,
         f"Exported department summary report ({format.upper()})"
     )
     
@@ -1679,6 +1775,194 @@ def export_department_report(
         media_type=media_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@app.get("/report/export/activity-logs")
+def export_activity_logs(
+    format: str = Query("pdf", regex="^(pdf|excel)$"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    action_type: Optional[ActivityType] = None,
+    user_id: Optional[int] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))  # Admin only
+):
+    """
+    Export activity logs report (Admin only)
+    Format: pdf or excel
+    """
+    # Build query
+    query = db.query(ActivityLog)
+    
+    # Apply filters
+    if start_date:
+        query = query.filter(ActivityLog.timestamp >= start_date)
+    if end_date:
+        query = query.filter(ActivityLog.timestamp <= end_date)
+    if action_type:
+        query = query.filter(ActivityLog.action_type == action_type)
+    if user_id:
+        query = query.filter(ActivityLog.user_id == user_id)
+    if search:
+        query = query.filter(ActivityLog.description.ilike(f"%{search}%"))
+    
+    activities = query.order_by(ActivityLog.timestamp.desc()).all()
+    
+    # Prepare data
+    activity_data = []
+    for activity in activities:
+        user = db.query(User).filter(User.id == activity.user_id).first()
+        
+        activity_data.append({
+            'timestamp': activity.timestamp.strftime("%Y-%m-%d %H:%M:%S") if activity.timestamp else 'N/A',
+            'user': user.email if user else 'Unknown',
+            'action': activity.action_type.value,
+            'description': activity.description,
+            'asset_id': activity.asset_id or 'N/A',
+            'ip_address': activity.ip_address or 'N/A'
+        })
+    
+    # Generate report (using existing report generator logic)
+    from io import BytesIO
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib import colors
+    
+    buffer = BytesIO()
+    
+    if format == 'pdf':
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+        elements = []
+        
+        styles = getSampleStyleSheet()
+        title = Paragraph("Activity Logs Report", styles['Title'])
+        elements.append(title)
+        
+        # Table data
+        table_data = [['Date & Time', 'User', 'Action', 'Description', 'Asset ID']]
+        for act in activity_data:
+            table_data.append([
+                act['timestamp'],
+                act['user'],
+                act['action'],
+                act['description'][:50] + '...' if len(act['description']) > 50 else act['description'],
+                act['asset_id']
+            ])
+        
+        table = Table(table_data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(table)
+        
+        doc.build(elements)
+        buffer.seek(0)
+        
+        filename = f"activity_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        media_type = "application/pdf"
+    else:
+        # Excel format
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Activity Logs"
+        
+        # Headers
+        ws.append(['Date & Time', 'User', 'Action', 'Description', 'Asset ID', 'IP Address'])
+        
+        # Data
+        for act in activity_data:
+            ws.append([
+                act['timestamp'],
+                act['user'],
+                act['action'],
+                act['description'],
+                act['asset_id'],
+                act['ip_address']
+            ])
+        
+        wb.save(buffer)
+        buffer.seek(0)
+        
+        filename = f"activity_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    
+    # Log activity
+    log_activity(
+        db, current_user["user_id"], ActivityType.EXPORTLOGS,
+        f"Admin exported activity logs report ({format.upper()})"
+    )
+    
+    return StreamingResponse(
+        buffer,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.patch("/admin/users/{user_id}/reactivate")
+async def reactivate_user(
+    user_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reactivate a deactivated user (Admin only)"""
+    try:
+        # Check if user is admin
+        if current_user['role'] != 'Admin':
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Get the user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user is already active
+        if user.is_active:
+            raise HTTPException(status_code=400, detail="User is already active")
+        
+        # Reactivate the user
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+        
+        # Log the activity
+        try:
+            activity = ActivityLog(
+                user_id=current_user['user_id'],
+                action_type=ActivityType.UPDATE,
+                description=f"Reactivated user: {user.email}",
+                ip_address="system"
+            )
+            db.add(activity)
+            db.commit()
+        except Exception as log_error:
+            print(f"Failed to log activity: {log_error}")
+            # Continue even if logging fails
+        
+        return {
+            "message": "User reactivated successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "is_active": user.is_active,
+                "role": user.role.value,
+                "company": user.company
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error reactivating user: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reactivate user: {str(e)}")
 
 # ==================== RUN SERVER ====================
 

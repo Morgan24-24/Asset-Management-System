@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { FaPlus, FaHistory, FaExchangeAlt, FaEye } from 'react-icons/fa'
+import { FaPlus, FaHistory, FaExchangeAlt, FaEye, FaEdit } from 'react-icons/fa'
 import axiosInstance from '../api/axios'
+import AssetHistoryModal from './AssetHistoryModal' 
+import { getDisplayName } from '../utils/helpers'
 
-const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
+const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -18,6 +20,20 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
     notes: ''
   })
   const [assignmentHistory, setAssignmentHistory] = useState([])
+  
+  // ✅ NEW: Edit modal states
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingAsset, setEditingAsset] = useState(null)
+  const [editFormData, setEditFormData] = useState({
+    model: '',
+    serial: '',
+    cost: '',
+    status: '',
+    warranty_status: '',
+    location: '',
+    department_id: '',
+    assignee_id: ''
+  })
 
   // Fetch dropdown data
   useEffect(() => {
@@ -88,11 +104,47 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
 
     try {
       await axiosInstance.post(`/assets/${selectedAsset.id}/assign`, transferData)
-      alert('Asset transferred successfully! Notification sent to the new assignee.')
+      
+      // Get the assigned user from the users list (already fetched)
+      const assignedUser = users.find(u => u.id === parseInt(transferData.assigned_to_id))
+      const userName = assignedUser ? getDisplayName(assignedUser) : 'the user'
+      
+      alert(`Asset transferred successfully to ${userName}! Notification has been sent.`)
       setShowTransfer(false)
       onRefresh() // Refresh the asset list
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to transfer asset')
+    }
+  }
+
+  // ✅ NEW: Handle edit click
+  const handleEditClick = (asset) => {
+    setEditingAsset(asset)
+    setEditFormData({
+      model: asset.model,
+      serial: asset.serial,
+      cost: asset.cost,
+      status: asset.status,
+      warranty_status: asset.warranty_status,
+      location: asset.location || '',
+      department_id: asset.department_id || '',
+      assignee_id: asset.assignee_id || ''
+    })
+    setShowEditModal(true)
+  }
+
+  // ✅ NEW: Handle edit submit
+  const handleEditSubmit = async () => {
+    if (!editingAsset) return
+
+    try {
+      await axiosInstance.patch(`/assets/${editingAsset.id}`, editFormData)
+      alert('Asset updated successfully!')
+      setShowEditModal(false)
+      setEditingAsset(null)
+      onRefresh()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to update asset')
     }
   }
 
@@ -218,8 +270,6 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
               <thead>
                 <tr>
                   <th>Asset ID</th>
-                  <th>Type</th>
-                  <th>Brand</th>
                   <th>Model</th>
                   <th>Serial</th>
                   <th>Status</th>
@@ -237,8 +287,6 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                       <td>
                         <strong>{asset.id}</strong>
                       </td>
-                      <td>{asset.asset_type?.name || 'N/A'}</td>
-                      <td>{asset.brand_obj?.name || 'N/A'}</td>
                       <td>{asset.model}</td>
                       <td style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
                         {asset.serial}
@@ -256,30 +304,55 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                         </span>
                       </td>
                       <td>
-                        {asset.assignee ? (
-                          <div>
-                            <div style={{ fontWeight: '600' }}>{asset.assignee.email}</div>
-                            <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
-                              Since: {new Date(asset.updated_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#6c757d' }}>Unassigned</span>
-                        )}
-                      </td>
+  {asset.assignee ? (
+    <div>
+      <div style={{ fontWeight: '600' }}>
+        {getDisplayName(asset.assignee)}
+      </div>
+      <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+        {asset.assignee.email}
+      </div>
+    </div>
+  ) : (
+    <span style={{ color: '#6c757d' }}>Unassigned</span>
+  )}
+</td>
                       <td>{asset.department?.name || 'Unassigned'}</td>
                       <td>{asset.location || 'N/A'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {/* View History - Everyone can see */}
                           <button 
                             className="btn btn-sm btn-outline"
                             onClick={() => viewAssetHistory(asset)}
                             title="View assignment history"
+                            style={{
+                              background: '#17a2b8',
+                              color: 'white',
+                              border: 'none'
+                            }}
                           >
                             <FaHistory size={12} />
                           </button>
                           
-                          {asset.status !== 'Retired' && (
+                          {/* ✅ NEW: Edit button - Manager/Admin only */}
+                          {(user?.role === 'Admin' || user?.role === 'Manager') && (
+                            <button 
+                              className="btn btn-sm btn-outline"
+                              onClick={() => handleEditClick(asset)}
+                              title="Edit asset"
+                              style={{
+                                background: '#ffc107',
+                                color: 'white',
+                                border: 'none'
+                              }}
+                            >
+                              <FaEdit size={12} />
+                            </button>
+                          )}
+                          
+                          {/* Transfer - Manager/Admin only */}
+                          {asset.status !== 'Retired' && (user?.role === 'Admin' || user?.role === 'Manager') && (
                             <button 
                               className="btn btn-sm btn-primary"
                               onClick={() => openTransferModal(asset)}
@@ -289,6 +362,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                             </button>
                           )}
                           
+                          {/* View Details - Everyone can see */}
                           <button 
                             className="btn btn-sm btn-info"
                             onClick={() => {/* Add view details functionality */}}
@@ -309,6 +383,15 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
 
       {/* Asset History Modal */}
       {showHistory && selectedAsset && (
+        <AssetHistoryModal 
+          assetId={selectedAsset.id}
+          onClose={() => setShowHistory(false)}
+          user={user}
+        />
+      )}
+
+      {/* ✅ NEW: Edit Asset Modal */}
+      {showEditModal && editingAsset && (
         <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
@@ -325,7 +408,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
             background: 'white',
             borderRadius: '8px',
             padding: '20px',
-            maxWidth: '800px',
+            maxWidth: '600px',
             width: '90%',
             maxHeight: '80vh',
             overflow: 'auto'
@@ -338,9 +421,9 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
               borderBottom: '1px solid #eaeaea',
               paddingBottom: '10px'
             }}>
-              <h3>Assignment History - {selectedAsset.id}</h3>
+              <h3>Edit Asset - {editingAsset.id}</h3>
               <button 
-                onClick={() => setShowHistory(false)}
+                onClick={() => setShowEditModal(false)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -351,38 +434,109 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                 ×
               </button>
             </div>
+            
             <div className="modal-body">
-              {assignmentHistory.length === 0 ? (
-                <p>No assignment history found for this asset.</p>
-              ) : (
-                <table className="assets-table">
-                  <thead>
-                    <tr>
-                      <th>Date Assigned</th>
-                      <th>Assigned To</th>
-                      <th>Assigned By</th>
-                      <th>Returned Date</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assignmentHistory.map(assignment => (
-                      <tr key={assignment.id}>
-                        <td>{new Date(assignment.assigned_date).toLocaleString()}</td>
-                        <td>{assignment.assigned_to?.email || 'N/A'}</td>
-                        <td>{assignment.assigned_by_user?.email || 'N/A'}</td>
-                        <td>
-                          {assignment.returned_date 
-                            ? new Date(assignment.returned_date).toLocaleString()
-                            : 'Currently assigned'
-                          }
-                        </td>
-                        <td>{assignment.notes || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              <div className="form-group">
+                <label>Model *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={editFormData.model}
+                  onChange={(e) => setEditFormData({...editFormData, model: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Serial Number *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={editFormData.serial}
+                  onChange={(e) => setEditFormData({...editFormData, serial: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Cost *</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={editFormData.cost}
+                  onChange={(e) => setEditFormData({...editFormData, cost: parseFloat(e.target.value)})}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Status *</label>
+                <select
+                  className="form-control"
+                  value={editFormData.status}
+                  onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
+                  required
+                >
+                  <option value="Available">Available</option>
+                  <option value="Active">Active</option>
+                  <option value="Under Maintenance">Under Maintenance</option>
+                  <option value="Retired">Retired</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Warranty Status *</label>
+                <select
+                  className="form-control"
+                  value={editFormData.warranty_status}
+                  onChange={(e) => setEditFormData({...editFormData, warranty_status: e.target.value})}
+                  required
+                >
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                  <option value="No Warranty">No Warranty</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Department</label>
+                <select
+                  className="form-control"
+                  value={editFormData.department_id}
+                  onChange={(e) => setEditFormData({...editFormData, department_id: e.target.value})}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Location</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={editFormData.location}
+                  onChange={(e) => setEditFormData({...editFormData, location: e.target.value})}
+                  placeholder="e.g., Building A, Floor 2"
+                />
+              </div>
+
+              <div className="form-actions">
+                <button 
+                  className="btn btn-success"
+                  onClick={handleEditSubmit}
+                >
+                  Save Changes
+                </button>
+                <button 
+                  className="btn btn-outline"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -427,7 +581,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                   cursor: 'pointer'
                 }}
               >
-                
+                ×
               </button>
             </div>
             <div className="modal-body">
@@ -440,9 +594,9 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick }) => {
                   required
                 >
                   <option value="">Select User</option>
-                  {users.filter(user => user.id !== selectedAsset.assignee_id).map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.email} ({user.role})
+                  {users.filter(u => u.id !== selectedAsset.assignee_id).map(u => (
+                    <option key={u.id} value={u.id}>
+                      {getDisplayName(u)} ({u.role})
                     </option>
                   ))}
                 </select>

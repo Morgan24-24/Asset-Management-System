@@ -1,52 +1,42 @@
-/* Sidebar.css */
-/* Hamburger Menu Button */
-.hamburger-menu {
-  position: fixed;
+/* Hamburger Menu Button - Inside Sidebar */
+.hamburger-menu-inside {
+  position: absolute;
   top: 20px;
-  left: 20px;
+  right: 15px;
   z-index: 1100;
-  background: #4361ee;
+  background: rgba(255, 255, 255, 0.1);
   color: white;
-  border: none;
-  width: 45px;
-  height: 45px;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 35px;
+  height: 35px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.4);
   transition: all 0.3s ease;
 }
 
-.hamburger-menu:hover {
-  background: #3651d4;
+.hamburger-menu-inside:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
   transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(67, 97, 238, 0.5);
 }
 
-.hamburger-menu:active {
+.hamburger-menu-inside:active {
   transform: scale(0.95);
 }
 
-/* Move button when sidebar is open (desktop) */
+/* Hide on desktop, show on mobile */
 @media (min-width: 769px) {
-  .hamburger-menu {
-    left: 280px;
+  .hamburger-menu-inside {
+    display: none;
   }
 }
 
-/* On mobile, button stays fixed when sidebar opens/closes */
 @media (max-width: 768px) {
-  .hamburger-menu {
-    left: 20px;
-  }
-}
-
-/* Move hamburger when sidebar is open on desktop */
-@media (min-width: 769px) {
-  .sidebar-open ~ .hamburger-menu {
-    left: 280px;
+  .hamburger-menu-inside {
+    display: flex;
   }
 }
 

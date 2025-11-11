@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axiosInstance from '../api/axios'
-import { FiPlus, FiEdit2, FiTrash2, FiUser, FiMail, FiBriefcase, FiShield } from 'react-icons/fi'
+import { FiPlus, FiEdit2, FiTrash2, FiUser, FiMail, FiBriefcase, FiShield, FiCheckCircle } from 'react-icons/fi'
 import PermissionsCheckbox from './PermissionsCheckbox'
 
 const UsersManagement = () => {
@@ -10,12 +10,27 @@ const UsersManagement = () => {
   const [editingUser, setEditingUser] = useState(null)
   const [formData, setFormData] = useState({
     email: '',
+    display_name: '',  // ✅ ADDED
     company: '',
     role: 'Viewer',
     password: ''
   })
   const [selectedPermissions, setSelectedPermissions] = useState([])
-  const [currentUser] = useState({ role: 'Admin' }) // Assuming current user is admin
+  const [allPermissions, setAllPermissions] = useState([])
+  const [currentUser] = useState({ role: 'Admin' })
+
+  useEffect(() => {
+    fetchAllPermissions()
+  }, [])
+
+  const fetchAllPermissions = async () => {
+    try {
+      const response = await axiosInstance.get('/permissions')
+      setAllPermissions(response.data)
+    } catch (err) {
+      console.error('Failed to fetch permissions:', err)
+    }
+  }
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -34,50 +49,69 @@ const UsersManagement = () => {
     fetchUsers()
   }, [])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      if (editingUser) {
-        // Update user (without password)
-        const { password, ...updateData } = formData
-        await axiosInstance.patch(`/admin/users/${editingUser.id}`, updateData)
-        
-        // Update permissions if they changed
-        if (currentUser.role === 'Admin' && formData.role !== 'Admin') {
-          await axiosInstance.post(`/users/${editingUser.id}/permissions/bulk`, selectedPermissions)
+  
+      const handleSubmit = async (e) => {
+  e.preventDefault()
+  try {
+    if (editingUser) {
+      // Update user basic info (without password)
+      const { password, ...updateData } = formData
+      await axiosInstance.patch(`/admin/users/${editingUser.id}`, updateData)
+      
+      // ✅ SKIP permission update if:
+      // - User is Admin (permissions handled automatically)
+      // - OR no permissions were selected/changed
+      const shouldUpdatePermissions = 
+        currentUser.role === 'Admin' && 
+        formData.role !== 'Admin' && 
+        selectedPermissions.length > 0
+      
+      if (shouldUpdatePermissions) {
+        try {
+          await axiosInstance.post(`/users/${editingUser.id}/permissions/bulk`, {
+            permission_ids: selectedPermissions
+          })
+        } catch (permErr) {
+          console.warn('Failed to update permissions, but user info was updated:', permErr)
+          // Don't fail the whole operation if just permissions failed
         }
-        
-        alert('User updated successfully!')
-      } else {
-        // Create new user
-        const userResponse = await axiosInstance.post('/admin/users', formData)
-        
-        // Assign permissions for non-admin users
-        if (currentUser.role === 'Admin' && formData.role !== 'Admin' && selectedPermissions.length > 0) {
-          await axiosInstance.post(`/users/${userResponse.data.id}/permissions/bulk`, selectedPermissions)
-        }
-        
-        alert('User created successfully!')
       }
       
-      // Reset form
-      setFormData({ email: '', company: '', role: 'Viewer', password: '' })
-      setSelectedPermissions([])
-      setEditingUser(null)
-      setShowForm(false)
-      fetchUsers()
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to save user')
+      alert('User updated successfully!')
+    } else {
+      // Create new user
+      const userResponse = await axiosInstance.post('/admin/users', formData)
+      
+      // Assign permissions for non-admin users
+      if (currentUser.role === 'Admin' && formData.role !== 'Admin' && selectedPermissions.length > 0) {
+        await axiosInstance.post(`/users/${userResponse.data.id}/permissions/bulk`, {
+          permission_ids: selectedPermissions
+        })
+      }
+      
+      alert('User created successfully!')
     }
+    
+    // Reset form
+    setFormData({ email: '', display_name: '', company: '', role: 'Viewer', password: '' })
+    setSelectedPermissions([])
+    setEditingUser(null)
+    setShowForm(false)
+    fetchUsers()
+  } catch (err) {
+    console.error('Error saving user:', err)
+    alert(err.response?.data?.detail || 'Failed to save user')
   }
+}
 
   const handleEdit = (user) => {
     setEditingUser(user)
     setFormData({
       email: user.email,
+      display_name: user.display_name || '',  // ✅ ADDED
       company: user.company,
       role: user.role,
-      password: '' // Don't show existing password
+      password: ''
     })
     
     // Fetch existing permissions for the user
@@ -91,7 +125,8 @@ const UsersManagement = () => {
   const fetchUserPermissions = async (userId) => {
     try {
       const response = await axiosInstance.get(`/users/${userId}/permissions`)
-      setSelectedPermissions(response.data.permissions.map(p => p.id))
+      const permissionIds = response.data.permissions.map(p => p.id)
+      setSelectedPermissions(permissionIds)
     } catch (err) {
       console.error('Failed to fetch user permissions:', err)
       setSelectedPermissions([])
@@ -112,29 +147,48 @@ const UsersManagement = () => {
     }
   }
 
+  const handleReactivate = async (userId, userEmail) => {
+    if (!window.confirm(`Are you sure you want to reactivate ${userEmail}?`)) {
+      return
+    }
+
+    try {
+      await axiosInstance.patch(`/admin/users/${userId}/reactivate`)
+      alert('User reactivated successfully!')
+      fetchUsers()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to reactivate user')
+    }
+  }
+
   const handleCancel = () => {
     setShowForm(false)
     setEditingUser(null)
-    setFormData({ email: '', company: '', role: 'Viewer', password: '' })
+    setFormData({ email: '', display_name: '', company: '', role: 'Viewer', password: '' })  // ✅ UPDATED
     setSelectedPermissions([])
   }
 
   const handleRoleChange = (newRole) => {
     setFormData({ ...formData, role: newRole })
     
-    // Apply role presets when role changes
-    if (newRole === 'Manager') {
-      setSelectedPermissions([
+    const rolePresetNames = {
+      Manager: [
         "view_assets", "create_assets", "edit_assets", "assign_assets", "transfer_assets",
         "view_reports", "generate_reports", "export_reports_pdf", "export_reports_excel",
         "view_departments", "view_maintenance", "create_maintenance", "view_activity_logs"
-      ])
-    } else if (newRole === 'Viewer') {
-      setSelectedPermissions([
+      ],
+      Viewer: [
         "view_assets", "view_reports", "view_departments", "view_maintenance"
-      ])
+      ]
+    }
+    
+    if (newRole === 'Manager' || newRole === 'Viewer') {
+      const permissionIds = allPermissions
+        .filter(p => rolePresetNames[newRole].includes(p.name))
+        .map(p => p.id)
+      setSelectedPermissions(permissionIds)
     } else if (newRole === 'Admin') {
-      setSelectedPermissions([]) // Admins get all permissions automatically
+      setSelectedPermissions([])
     }
   }
 
@@ -181,6 +235,20 @@ const UsersManagement = () => {
                     />
                   </div>
 
+                  {/* ✅ NEW: Display Name Field */}
+                  <div className="form-group">
+                    <label>Display Name</label>
+                    <input
+                      type="text"
+                      value={formData.display_name}
+                      onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                      placeholder="e.g., Lloyd Junior, Mark Amoani"
+                    />
+                    <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '4px', display: 'block' }}>
+                      Optional: How this user's name appears throughout the system
+                    </small>
+                  </div>
+
                   <div className="form-group">
                     <label>Company *</label>
                     <input
@@ -221,7 +289,7 @@ const UsersManagement = () => {
                 </div>
               </div>
 
-              {/* Permissions Section - Only show for non-admin roles */}
+              {/* Permissions Section */}
               {currentUser.role === 'Admin' && formData.role !== 'Admin' && (
                 <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #e0e0e0' }}>
                   <h4 style={{ marginBottom: '15px', color: '#333' }}>
@@ -266,7 +334,7 @@ const UsersManagement = () => {
         </div>
       )}
 
-      {/* Rest of your existing user list code remains the same */}
+      {/* User List */}
       <div className="card">
         <div className="card-header">
           <h3>System Users ({users.length})</h3>
@@ -286,84 +354,117 @@ const UsersManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          background: getRoleColor(user.role),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontWeight: 'bold'
-                        }}>
-                          <FiUser size={16} />
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: '600' }}>{user.email}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
-                            Joined: {new Date(user.created_at).toLocaleDateString()}
+                {users.map((user) => {
+                  return (
+                    <tr key={user.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: user.is_active ? getRoleColor(user.role) : '#6c757d',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            opacity: user.is_active ? 1 : 0.5
+                          }}>
+                            <FiUser size={16} />
+                          </div>
+                          <div>
+                            <div style={{ 
+                              fontWeight: '600',
+                              opacity: user.is_active ? 1 : 0.6,
+                              textDecoration: user.is_active ? 'none' : 'line-through'
+                            }}>
+                              {user.email}
+                              {!user.is_active && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '0.75rem',
+                                  color: '#dc3545',
+                                  fontWeight: 'normal'
+                                }}>
+                                  (Deactivated)
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                              Joined: {new Date(user.created_at).toLocaleDateString()}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FiBriefcase size={14} />
-                        {user.company}
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: getRoleColor(user.role) + '20',
-                        color: getRoleColor(user.role)
-                      }}>
-                        <FiShield size={12} style={{ marginRight: '4px' }} />
-                        {user.role}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: user.is_active ? '#d4edda' : '#f8d7da',
-                        color: user.is_active ? '#155724' : '#721c24'
-                      }}>
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button 
-                          className="btn btn-sm btn-outline"
-                          onClick={() => handleEdit(user)}
-                          title="Edit user"
-                        >
-                          <FiEdit2 size={14} />
-                        </button>
-                        {user.is_active && (
-                          <button 
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleDeactivate(user.id, user.email)}
-                            title="Deactivate user"
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <FiBriefcase size={14} />
+                          {user.company}
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          backgroundColor: getRoleColor(user.role) + '20',
+                          color: getRoleColor(user.role)
+                        }}>
+                          <FiShield size={12} style={{ marginRight: '4px' }} />
+                          {user.role}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          backgroundColor: user.is_active ? '#d4edda' : '#f8d7da',
+                          color: user.is_active ? '#155724' : '#721c24'
+                        }}>
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn btn-sm btn-outline"
+                            onClick={() => handleEdit(user)}
+                            title="Edit user"
                           >
-                            <FiTrash2 size={14} />
+                            <FiEdit2 size={14} />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+
+                          {user.is_active ? (
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleDeactivate(user.id, user.email)}
+                              title="Deactivate user"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-success"
+                              onClick={() => handleReactivate(user.id, user.email)}
+                              title="Reactivate user"
+                              style={{
+                                background: '#28a745',
+                                color: 'white',
+                                border: 'none'
+                              }}
+                            >
+                              <FiCheckCircle size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -373,4 +474,4 @@ const UsersManagement = () => {
   )
 }
 
-export default UsersManagement;
+export default UsersManagement

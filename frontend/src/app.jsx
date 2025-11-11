@@ -11,7 +11,7 @@ import Login from "./pages/Login"
 import UsersManagement from './components/UsersManagement'
 import Reports from './components/Reports'
 import Department from './pages/Departments'
-import { FaUsers, FaFileAlt } from 'react-icons/fa'
+import ActivityLogs from './pages/ActivityLogs'
 
 // Protected Route Component - checks for authentication token
 function ProtectedRoute({ children }) {
@@ -51,6 +51,7 @@ function MainApp() {
     if (path === '/licenses') return 'licenses'
     if (path === '/departments') return 'departments'
     if (path === '/users') return 'users'
+    if (path === '/activity-logs') return 'activity-logs'
     if (path === '/reports') return 'reports'
     return 'dashboard'
   }
@@ -67,26 +68,11 @@ function MainApp() {
       licenses: '/licenses',
       departments: '/departments',
       users: '/users',
+      'activity-logs': '/activity-logs',
       reports: '/reports'
     }
     navigate(routes[view] || '/dashboard')
   }
-
-  // Enhanced menu items with role-based access
-  const menuItems = [
-    { id: 'dashboard', icon: FaUsers, label: 'Dashboard', roles: ['Admin', 'Manager', 'Viewer'] },
-    { id: 'assets', icon: FaUsers, label: 'Assets', roles: ['Admin', 'Manager', 'Viewer'] },
-    { id: 'maintenance', icon: FaUsers, label: 'Maintenance', roles: ['Admin', 'Manager'] },
-    { id: 'licenses', icon: FaUsers, label: 'Licenses', roles: ['Admin', 'Manager', 'Viewer'] },
-    { id: 'departments', icon: FaUsers, label: 'Departments', roles: ['Admin', 'Manager', 'Viewer'] },
-    { id: 'users', icon: FaUsers, label: 'User Management', roles: ['Admin'] },
-    { id: 'reports', icon: FaFileAlt, label: 'Reports', roles: ['Admin', 'Manager'] },
-  ]
-
-  // Filter menu items based on user role
-  const filteredMenuItems = menuItems.filter(item => 
-    user ? item.roles.includes(user.role) : false
-  )
 
   // Fetch current user info from API
   const fetchUser = async () => {
@@ -238,13 +224,20 @@ function MainApp() {
   }
 
   // Handle user logout with confirmation
-  const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      window.location.href = '/'
+const handleLogout = async () => {
+  if (window.confirm('Are you sure you want to logout?')) {
+    // Log the logout activity BEFORE removing token
+    try {
+      await axiosInstance.post('/logout')
+    } catch (err) {
+      console.error('Failed to log logout activity:', err)
     }
+    
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    window.location.href = '/'
   }
+}
 
   // Check if user has permission for specific actions
   const hasPermission = (requiredRole) => {
@@ -262,7 +255,6 @@ function MainApp() {
         isSidebarOpen={isSidebarOpen}
         toggleSidebar={toggleSidebar}
         onLogout={handleLogout}
-        menuItems={filteredMenuItems}
         user={user}
       />
 
@@ -280,30 +272,31 @@ function MainApp() {
           </div>
         )}
 
-        {/* Header for all pages */}
-        <div className="header">
-          <div>
-            <h1>AssetHub - IT Asset Management</h1>
-            <p style={{ color: '#6c757d', margin: 0 }}>
-              {currentView.charAt(0).toUpperCase() + currentView.slice(1)} 
-              {user?.company ? ` • ${user.company}` : ''}
-            </p>
-          </div>
-          <div className="user-info">
-            <span>Welcome, {user?.email || 'User'}</span>
-            <span className="user-role" style={{
-              background: user?.role === 'Admin' ? '#dc3545' : 
-                          user?.role === 'Manager' ? '#fd7e14' : '#6c757d',
-              color: 'white',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontSize: '12px',
-              fontWeight: '600'
-            }}>
-              {user?.role || 'User'}
-            </span>
-          </div>
-        </div>
+        {/* Header ONLY for dashboard */}
+{currentView === 'dashboard' && (
+  <div className="header">
+    <div>
+      <h1>AssetHub - IT Asset Management</h1>
+      <p style={{ color: '#6c757d', margin: 0 }}>
+        Dashboard • {user?.company}
+      </p>
+    </div>
+    <div className="user-info">
+      <span>Welcome, {user?.email || 'User'}</span>
+      <span className="user-role" style={{
+        background: user?.role === 'Admin' ? '#dc3545' : 
+                    user?.role === 'Manager' ? '#fd7e14' : '#6c757d',
+        color: 'white',
+        padding: '2px 8px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '600'
+      }}>
+        {user?.role || 'User'}
+      </span>
+    </div>
+  </div>
+)}
 
         {/* Role-based access control for views */}
         {currentView === 'dashboard' && (
@@ -371,6 +364,12 @@ function MainApp() {
           />
         )}
 
+        {currentView === 'activity-logs' && hasPermission('Manager') && (
+          <ActivityLogs 
+            user={user}
+          />
+       )}
+
         {currentView === 'reports' && hasPermission('Manager') && (
           <Reports 
             user={user}
@@ -390,6 +389,13 @@ function MainApp() {
             <h3>Access Denied</h3>
             <p>You need Manager or Admin privileges to access Reports.</p>
           </div>
+        )}
+
+        {currentView === 'activity-logs' && !hasPermission('Manager') && (
+          <div className="alert alert-danger">
+            <h3>Access Denied</h3>
+            <p>You need Manager or Admin privileges to access Activity Logs.</p>
+         </div>
         )}
 
         {currentView === 'maintenance' && !hasPermission('Manager') && (
@@ -474,6 +480,15 @@ function App() {
           } 
         />
         
+        <Route 
+          path="/activity-logs" 
+          element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } 
+        />
+
         <Route 
           path="/reports" 
           element={

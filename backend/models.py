@@ -30,6 +30,9 @@ class ActivityType(str, enum.Enum):
     ASSIGN = "ASSIGN"
     TRANSFER = "TRANSFER"
     MAINTENANCE = "MAINTENANCE"
+    LOGIN = "LOGIN" 
+    LOGOUT = "LOGOUT" 
+    EXPORTLOGS = "EXPORTLOGS"
 
 # ==================== MODELS ====================
 
@@ -38,6 +41,7 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
+    display_name = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     company = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.VIEWER, nullable=False)
@@ -116,6 +120,7 @@ class Asset(Base):
     asset_type = relationship("AssetType", back_populates="assets")
     brand_obj = relationship("Brand", back_populates="assets")
     assignee = relationship("User", foreign_keys=[assignee_id])
+    department = relationship("Department", foreign_keys=[department_id])
     deleted_by_user = relationship("User", foreign_keys=[deleted_by])
     maintenance_records = relationship("Maintenance", back_populates="asset")
     assignments = relationship("AssetAssignment", back_populates="asset")

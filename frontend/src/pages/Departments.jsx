@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import axiosInstance from '../api/axios'
 import { FiPlus, FiEdit2, FiTrash2, FiMapPin, FiPackage, FiUser, FiMail, FiPhone, FiHash } from 'react-icons/fi'
+import DepartmentAssetsModal from '../components/DepartmentAssetsModal'
 
-const Department = () => {
+const Department = ({ user }) => {
    // State for storing list of departments
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -10,6 +11,8 @@ const Department = () => {
   const [showForm, setShowForm] = useState(false)
   // State to track which department is being edited (null for new departments)
   const [editingDept, setEditingDept] = useState(null)
+  const [showAssetsModal, setShowAssetsModal] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState(null)
   // State for form data
   const [formData, setFormData] = useState({
     name: '',
@@ -82,7 +85,8 @@ const Department = () => {
   }
 
   // Handle edit button click
-  const handleEdit = (dept) => {
+  const handleEdit = (dept, e) => {
+    e.stopPropagation() // Prevent row click
     setEditingDept(dept)
     setFormData({
       name: dept.name,
@@ -96,7 +100,8 @@ const Department = () => {
   }
 
   // Handle delete
-  const handleDelete = async (deptId, deptName) => {
+  const handleDelete = async (deptId, deptName, e) => {
+    e.stopPropagation() // Prevent row click
     if (!window.confirm(`Are you sure you want to delete "${deptName}"?`)) {
       return
     }
@@ -108,6 +113,12 @@ const Department = () => {
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to delete department')
     }
+  }
+
+  // ✅ Handle viewing department assets
+  const handleViewAssets = (dept) => {
+    setSelectedDepartment(dept)
+    setShowAssetsModal(true)
   }
 
   // Cancel form
@@ -134,12 +145,14 @@ const Department = () => {
       {/* Header */}
       <div className="header">
         <h1>Departments</h1>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowForm(true)}
-        >
-          <FiPlus size={18} /> Add Department
-        </button>
+        {user?.role === 'Admin' && (
+          <button 
+            className="btn btn-primary"
+            onClick={() => setShowForm(true)}
+          >
+            <FiPlus size={18} /> Add Department
+          </button>
+        )}
       </div>
 
       {/* Error Alert */}
@@ -257,13 +270,15 @@ const Department = () => {
             <div style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>
               <FiPackage size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
               <p>No departments found. Create your first department to get started!</p>
-              <button 
-                className="btn btn-primary"
-                onClick={() => setShowForm(true)}
-                style={{ marginTop: '16px' }}
-              >
-                <FiPlus size={18} /> Create Department
-              </button>
+              {user?.role === 'Admin' && (
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setShowForm(true)}
+                  style={{ marginTop: '16px' }}
+                >
+                  <FiPlus size={18} /> Create Department
+                </button>
+              )}
             </div>
           ) : (
             <table className="table">
@@ -278,90 +293,117 @@ const Department = () => {
                 </tr>
               </thead>
               <tbody>
-                {departments.map((dept) => (
-                  <tr key={dept.id}>
-                    <td>
-                      <span style={{ 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '6px',
-                        padding: '4px 8px',
-                        background: '#e3f2fd',
-                        borderRadius: '4px',
-                        fontWeight: 'bold',
-                        color: '#1976d2'
-                      }}>
-                        <FiHash size={14} />
-                        {dept.code}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{dept.name}</strong>
-                    </td>
-                    <td>
-                      {dept.location ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <FiMapPin size={14} />
-                          {dept.location}
+                {departments.map((dept) => {
+                  return (
+                    <tr 
+                      key={dept.id}
+                      onClick={() => handleViewAssets(dept)}
+                      style={{ 
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <td>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 8px',
+                          background: '#e3f2fd',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          color: '#1976d2'
+                        }}>
+                          <FiHash size={14} />
+                          {dept.code}
                         </span>
-                      ) : (
-                        <span style={{ color: '#999' }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      {dept.head_of_department ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <FiUser size={14} />
-                          {dept.head_of_department}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#999' }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem' }}>
-                        {dept.contact_email && (
+                      </td>
+                      <td>
+                        <strong>{dept.name}</strong>
+                      </td>
+                      <td>
+                        {dept.location ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <FiMail size={12} />
-                            {dept.contact_email}
+                            <FiMapPin size={14} />
+                            {dept.location}
                           </span>
-                        )}
-                        {dept.contact_phone && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <FiPhone size={12} />
-                            {dept.contact_phone}
-                          </span>
-                        )}
-                        {!dept.contact_email && !dept.contact_phone && (
+                        ) : (
                           <span style={{ color: '#999' }}>—</span>
                         )}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button 
-                          className="btn btn-sm btn-outline"
-                          onClick={() => handleEdit(dept)}
-                          title="Edit department"
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-                        <button 
-                          className="btn btn-sm btn-danger"
-                          onClick={() => handleDelete(dept.id, dept.name)}
-                          title="Delete department"
-                        >
-                          <FiTrash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {dept.head_of_department ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FiUser size={14} />
+                            {dept.head_of_department}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#999' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem' }}>
+                          {dept.contact_email && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <FiMail size={12} />
+                              {dept.contact_email}
+                            </span>
+                          )}
+                          {dept.contact_phone && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <FiPhone size={12} />
+                              {dept.contact_phone}
+                            </span>
+                          )}
+                          {!dept.contact_email && !dept.contact_phone && (
+                            <span style={{ color: '#999' }}>—</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {user?.role === 'Admin' ? (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn btn-sm btn-outline"
+                              onClick={(e) => handleEdit(dept, e)}
+                              title="Edit department"
+                            >
+                              <FiEdit2 size={16} />
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={(e) => handleDelete(dept.id, dept.name, e)}
+                              title="Delete department"
+                            >
+                              <FiTrash2 size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#6c757d', fontSize: '0.9rem' }}>View Only</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
         </div>
       </div>
+
+      {/* ✅ Department Assets Modal */}
+      {showAssetsModal && selectedDepartment && (
+        <DepartmentAssetsModal 
+          departmentId={selectedDepartment.id}
+          departmentName={selectedDepartment.name}
+          onClose={() => {
+            setShowAssetsModal(false)
+            setSelectedDepartment(null)
+          }}
+        />
+      )}
     </div>
   )
 }
