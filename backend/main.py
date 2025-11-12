@@ -41,6 +41,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#ADD THIS VALIDATION ERROR HANDLER
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+
 # ==================== HELPER FUNCTIONS ====================
 
 def require_role(allowed_roles: List[UserRole]):
@@ -262,6 +267,145 @@ def get_all_users(
     users = query.offset(skip).limit(limit).all()
     return users
 
+@app.patch("/admin/users/{user_id}/reactivate")
+async def reactivate_user(
+    user_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reactivate a deactivated user (Admin only)"""
+    try:
+        # Check if user is admin
+        if current_user['role'] != 'Admin':
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Get the user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user is already active
+        if user.is_active:
+            raise HTTPException(status_code=400, detail="User is already active")
+        
+        # Reactivate the user
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+        
+        # Log the activity
+        try:
+            activity = ActivityLog(
+                user_id=current_user['user_id'],
+                action_type=ActivityType.REACTIVATE,
+                description=f"Reactivated user: {user.email}",
+                ip_address="system"
+            )
+            db.add(activity)
+            db.commit()
+        except Exception as log_error:
+            print(f"Failed to log activity: {log_error}")
+            # Continue even if logging fails
+        
+        return {
+            "message": "User reactivated successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "is_active": user.is_active,
+                "role": user.role.value,
+                "company": user.company
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error reactivating user: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reactivate user: {str(e)}")
+
+@app.delete("/admin/users/{user_id}/permanent") 
+def permanently_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Permanently delete a user (Admin only) - CANNOT BE UNDONE"""
+    from models import UserPermission, AssetAssignment
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.id == current_user["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    # Check if user has active assignments
+    active_assignments = db.query(AssetAssignment).filter(
+        AssetAssignment.assigned_to_id == user_id,
+        AssetAssignment.is_active == True
+    ).count()
+    
+    if active_assignments > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user. They have {active_assignments} active asset assignments. Please reassign or return assets first."
+        )
+    
+    # Delete related records
+    print(f"🗑️ Permanently deleting user: {user.email}")
+    
+    # 1. Delete permissions
+    perm_count = db.query(UserPermission).filter(UserPermission.user_id == user_id).delete()
+    print(f"   - Deleted {perm_count} permissions")
+    
+    # 2. Delete notifications
+    notif_count = db.query(Notification).filter(Notification.user_id == user_id).delete()
+    print(f"   - Deleted {notif_count} notifications")
+    
+    # 3. Update activity logs (keep for audit trail but anonymize)
+    log_count = db.query(ActivityLog).filter(ActivityLog.user_id == user_id).count()
+    if log_count > 0:
+        db.query(ActivityLog).filter(ActivityLog.user_id == user_id).update({
+            "description": func.concat(ActivityLog.description, " [User Deleted]")
+        })
+        print(f"   - Anonymized {log_count} activity logs")
+    
+    # 4. Update asset assignments (keep history but nullify user references)
+    assigned_to_count = db.query(AssetAssignment).filter(
+        AssetAssignment.assigned_to_id == user_id
+    ).count()
+    if assigned_to_count > 0:
+        db.query(AssetAssignment).filter(AssetAssignment.assigned_to_id == user_id).update({
+            "assigned_to_id": None
+        })
+        print(f"   - Nullified {assigned_to_count} 'assigned_to' references")
+    
+    assigned_by_count = db.query(AssetAssignment).filter(
+        AssetAssignment.assigned_by_id == user_id
+    ).count()
+    if assigned_by_count > 0:
+        db.query(AssetAssignment).filter(AssetAssignment.assigned_by_id == user_id).update({
+            "assigned_by_id": None
+        })
+        print(f"   - Nullified {assigned_by_count} 'assigned_by' references")
+    
+    # 5. Delete the user
+    user_email = user.email
+    db.delete(user)
+    db.commit()
+    
+    print(f"✅ User {user_email} permanently deleted")
+    
+    # Log activity
+    log_activity(
+        db, current_user["user_id"], ActivityType.DELETE,
+        f"PERMANENTLY DELETED USER: {user_email}"
+    )
+    
+    return {"message": f"User {user_email} permanently deleted"}
+
 @app.get("/admin/users/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: int,
@@ -321,11 +465,12 @@ def deactivate_user(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.DELETE,
+        db, current_user["user_id"], ActivityType.DEACTIVATE,
         f"Admin deactivated user: {user.email}"
     )
     
     return {"message": f"User {user.email} deactivated successfully"}
+
 
 # ==================== ASSET TYPE ROUTES ====================
 
@@ -994,10 +1139,15 @@ def get_department_assets(
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
     
-    assets = db.query(Asset).filter(
-        Asset.department_id == dept_id,
-        Asset.is_deleted == False
-    ).all()
+    assets = db.query(Asset).options(
+    joinedload(Asset.assignee),
+    joinedload(Asset.department),
+    joinedload(Asset.asset_type),
+    joinedload(Asset.brand_obj)
+).filter(
+    Asset.department_id == dept_id,
+    Asset.is_deleted == False
+).all()
     
     total_cost = sum(asset.cost for asset in assets)
     active_count = sum(1 for asset in assets if asset.status == AssetStatusEnum.ACTIVE)
@@ -1147,7 +1297,7 @@ def mark_all_notifications_read(
 @app.get("/permissions", response_model=List[PermissionResponse])
 def get_all_permissions(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["manage_permissions"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Get all available permissions (admin only)"""
     from models import Permission
@@ -1186,12 +1336,50 @@ def get_user_permissions_list(
         ]
     }
 
+@app.post("/users/{user_id}/permissions/bulk")
+def set_user_permissions(
+    user_id: int,
+    permission_data: PermissionBulkUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Set all permissions for a user at once (replaces existing)"""
+    from models import User, Permission, UserPermission
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Remove all existing permissions
+    db.query(UserPermission).filter(UserPermission.user_id == user_id).delete()
+    
+    # Add new permissions
+    for perm_id in permission_data.permission_ids:
+        permission = db.query(Permission).filter(Permission.id == perm_id).first()
+        if permission:
+            user_perm = UserPermission(
+                user_id=user_id,
+                permission_id=perm_id,
+                granted_by=current_user["user_id"]
+            )
+            db.add(user_perm)
+    
+    db.commit()
+    
+    # Log activity
+    log_activity(
+        db, current_user["user_id"], ActivityType.UPDATE,
+        f"Updated permissions for user {user.email}"
+    )
+    
+    return {"message": f"Permissions updated for {user.email}"}
+
 @app.post("/users/{user_id}/permissions/{permission_id}")
 def grant_permission(
     user_id: int,
     permission_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["manage_permissions"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Grant a permission to a user (admin only)"""
     from models import User, Permission, UserPermission
@@ -1236,7 +1424,7 @@ def revoke_permission(
     user_id: int,
     permission_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["manage_permissions"]))
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Revoke a permission from a user (admin only)"""
     from models import User, Permission, UserPermission
@@ -1269,44 +1457,6 @@ def revoke_permission(
     )
     
     return {"message": f"Permission '{permission.name}' revoked from {user.email}"}
-
-@app.post("/users/{user_id}/permissions/bulk")
-def set_user_permissions(
-    user_id: int,
-    permission_data: PermissionBulkUpdate,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(["manage_permissions"]))
-):
-    """Set all permissions for a user at once (replaces existing)"""
-    from models import User, Permission, UserPermission
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Remove all existing permissions
-    db.query(UserPermission).filter(UserPermission.user_id == user_id).delete()
-    
-    # Add new permissions
-    for perm_id in permission_data.permission_ids:
-        permission = db.query(Permission).filter(Permission.id == perm_id).first()
-        if permission:
-            user_perm = UserPermission(
-                user_id=user_id,
-                permission_id=perm_id,
-                granted_by=current_user["user_id"]
-            )
-            db.add(user_perm)
-    
-    db.commit()
-    
-    # Log activity
-    log_activity(
-        db, current_user["user_id"], ActivityType.UPDATE,
-        f"Updated permissions for user {user.email}"
-    )
-    
-    return {"message": f"Permissions updated for {user.email}"}
 
 # ==================== REPORT ROUTES ====================
 
@@ -1905,64 +2055,7 @@ def export_activity_logs(
         media_type=media_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-
-@app.patch("/admin/users/{user_id}/reactivate")
-async def reactivate_user(
-    user_id: int,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Reactivate a deactivated user (Admin only)"""
-    try:
-        # Check if user is admin
-        if current_user['role'] != 'Admin':
-            raise HTTPException(status_code=403, detail="Admin access required")
-        
-        # Get the user
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Check if user is already active
-        if user.is_active:
-            raise HTTPException(status_code=400, detail="User is already active")
-        
-        # Reactivate the user
-        user.is_active = True
-        db.commit()
-        db.refresh(user)
-        
-        # Log the activity
-        try:
-            activity = ActivityLog(
-                user_id=current_user['user_id'],
-                action_type=ActivityType.UPDATE,
-                description=f"Reactivated user: {user.email}",
-                ip_address="system"
-            )
-            db.add(activity)
-            db.commit()
-        except Exception as log_error:
-            print(f"Failed to log activity: {log_error}")
-            # Continue even if logging fails
-        
-        return {
-            "message": "User reactivated successfully",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "is_active": user.is_active,
-                "role": user.role.value,
-                "company": user.company
-            }
-        }
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error reactivating user: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to reactivate user: {str(e)}")
 
 # ==================== RUN SERVER ====================
 

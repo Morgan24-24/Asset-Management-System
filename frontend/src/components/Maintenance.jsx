@@ -23,7 +23,7 @@ const Maintenance = ({ assets, maintenance, onAddMaintenance, onRefresh, user })
       try {
         const [assetsRes, usersRes] = await Promise.all([
           axiosInstance.get('/assets'),
-          axiosInstance.get('/admin/users') 
+          axiosInstance.get('/users/active') 
         ])
         
         setDropdownData({

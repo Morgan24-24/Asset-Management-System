@@ -31,6 +31,8 @@ class ActivityType(str, Enum):
     LOGIN = "LOGIN" 
     LOGOUT = "LOGOUT" 
     EXPORTLOGS = "EXPORTLOGS"
+    DEACTIVATE = "DEACTIVATE" 
+    REACTIVATE = "REACTIVATE" 
 
 
 # ==================== USER SCHEMAS ====================

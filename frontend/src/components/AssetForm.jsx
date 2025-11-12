@@ -35,7 +35,7 @@ const AssetForm = ({ onSubmit, onCancel, user }) => {
           axiosInstance.get('/asset-types'),
           axiosInstance.get('/brands'),
           axiosInstance.get('/departments'),
-          axiosInstance.get('/admin/users')
+          axiosInstance.get('/users/active')
         ])
         
         setDropdownData({

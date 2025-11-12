@@ -33,6 +33,8 @@ class ActivityType(str, enum.Enum):
     LOGIN = "LOGIN" 
     LOGOUT = "LOGOUT" 
     EXPORTLOGS = "EXPORTLOGS"
+    DEACTIVATE = "DEACTIVATE" 
+    REACTIVATE = "REACTIVATE" 
 
 # ==================== MODELS ====================
 
