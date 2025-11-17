@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import axiosInstance from '../api/axios'
 import { FiPlus, FiEdit2, FiTrash2, FiMapPin, FiPackage, FiUser, FiMail, FiPhone, FiHash } from 'react-icons/fi'
 import DepartmentAssetsModal from '../components/DepartmentAssetsModal'
+import { formatNumber } from '../utils/formatters'
 
 const Department = ({ user }) => {
    // State for storing list of departments
@@ -86,7 +87,7 @@ const Department = ({ user }) => {
 
   // Handle edit button click
   const handleEdit = (dept, e) => {
-    e.stopPropagation() // Prevent row click
+    if (e) e.stopPropagation() // Prevent row click
     setEditingDept(dept)
     setFormData({
       name: dept.name,
@@ -101,7 +102,7 @@ const Department = ({ user }) => {
 
   // Handle delete
   const handleDelete = async (deptId, deptName, e) => {
-    e.stopPropagation() // Prevent row click
+    if (e) e.stopPropagation() // Prevent row click
     if (!window.confirm(`Are you sure you want to delete "${deptName}"?`)) {
       return
     }
@@ -263,7 +264,7 @@ const Department = ({ user }) => {
       {/* Departments List */}
       <div className="card">
         <div className="card-header">
-          <h3>All Departments ({departments.length})</h3>
+          <h3>All Departments ({formatNumber(departments.length, 0)})</h3>
         </div>
         <div className="card-body">
           {departments.length === 0 ? (
@@ -289,7 +290,6 @@ const Department = ({ user }) => {
                   <th>Location</th>
                   <th>Head of Department</th>
                   <th>Contact</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -362,28 +362,6 @@ const Department = ({ user }) => {
                           )}
                         </div>
                       </td>
-                      <td>
-                        {user?.role === 'Admin' ? (
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              className="btn btn-sm btn-outline"
-                              onClick={(e) => handleEdit(dept, e)}
-                              title="Edit department"
-                            >
-                              <FiEdit2 size={16} />
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={(e) => handleDelete(dept.id, dept.name, e)}
-                              title="Delete department"
-                            >
-                              <FiTrash2 size={16} />
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#6c757d', fontSize: '0.9rem' }}>View Only</span>
-                        )}
-                      </td>
                     </tr>
                   )
                 })}
@@ -393,15 +371,19 @@ const Department = ({ user }) => {
         </div>
       </div>
 
-      {/* ✅ Department Assets Modal */}
+      {/*Department Assets Modal */}
       {showAssetsModal && selectedDepartment && (
         <DepartmentAssetsModal 
           departmentId={selectedDepartment.id}
           departmentName={selectedDepartment.name}
+          department={selectedDepartment}
           onClose={() => {
             setShowAssetsModal(false)
             setSelectedDepartment(null)
           }}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          userRole={user?.role}
         />
       )}
     </div>

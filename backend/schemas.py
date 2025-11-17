@@ -33,6 +33,8 @@ class ActivityType(str, Enum):
     EXPORTLOGS = "EXPORTLOGS"
     DEACTIVATE = "DEACTIVATE" 
     REACTIVATE = "REACTIVATE" 
+    REMOVE = "REMOVE"
+    UPLOAD = "UPLOAD"
 
 
 # ==================== USER SCHEMAS ====================
@@ -324,3 +326,31 @@ class UserWithPermissions(UserResponse):
 
 class PermissionBulkUpdate(BaseModel):
     permission_ids: List[int]
+
+# ==================== USER SETTINGS SCHEMAS ====================
+
+class UserProfileResponse(BaseModel):
+    """Complete user profile for settings page"""
+    id: int
+    email: EmailStr
+    display_name: Optional[str] = None
+    company: str
+    role: UserRole
+    is_active: bool
+    avatar_url: Optional[str] = None
+    created_at: datetime
+    permissions: List[PermissionResponse] = []
+    
+    class Config:
+        from_attributes = True
+
+class PasswordChangeRequest(BaseModel):
+    """Request to change user password"""
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+    confirm_password: str
+
+class AvatarUploadResponse(BaseModel):
+    """Response after avatar upload"""
+    avatar_url: str
+    message: str

@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, status, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, status, Request, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles  
 from sqlalchemy.orm import Session, joinedload
 from datetime import timedelta, datetime
 from typing import Optional, List
@@ -19,7 +20,8 @@ from schemas import (
     BrandCreate, BrandResponse,
     AssetAssignmentCreate, AssetAssignmentResponse,
     ActivityLogResponse, NotificationResponse, PermissionResponse,
-    UserCreate, UserUpdate, UserResponse, Token
+    UserCreate, UserUpdate, UserResponse, Token,
+    UserProfileResponse, PasswordChangeRequest, AvatarUploadResponse
 )
 from auth import (
     get_password_hash, verify_password, get_user_permissions,
@@ -29,6 +31,7 @@ from auth import (
 from sqlalchemy import func, or_, and_
 from fastapi.responses import StreamingResponse
 from report_generator import AssetReportGenerator, MaintenanceReportGenerator, DepartmentReportGenerator
+
 
 app = FastAPI(title="IT Asset Management System", version="2.0")
 
@@ -40,6 +43,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from pathlib import Path
+Path("uploads/avatars").mkdir(parents=True, exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 #ADD THIS VALIDATION ERROR HANDLER
 from fastapi.exceptions import RequestValidationError
@@ -171,13 +179,23 @@ def login(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/users/me", response_model=UserResponse)
+@app.get("/users/me")
 def get_me(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get current user information"""
     user = get_user_by_email(db, current_user["email"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "company": user.company,
+        "role": user.role.value,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "avatar_url": user.avatar_url
+    }
 
 @app.post("/logout")
 def logout(
@@ -197,6 +215,202 @@ def logout(
     except Exception as e:
         print(f"Error logging logout: {e}")
         return {"message": "Logout processed"}
+    
+# ==================== USER SETTINGS ROUTES ====================
+
+@app.get("/users/me/profile", response_model=UserProfileResponse)
+def get_user_profile(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get complete user profile for settings page"""
+    from models import Permission, UserPermission
+    
+    user = get_user_by_email(db, current_user["email"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user's permissions
+    permissions = []
+    if user.role != UserRole.ADMIN:
+        permissions = db.query(Permission).join(
+            UserPermission, UserPermission.permission_id == Permission.id
+        ).filter(UserPermission.user_id == user.id).all()
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "company": user.company,
+        "role": user.role,
+        "is_active": user.is_active,
+        "avatar_url": user.avatar_url,
+        "created_at": user.created_at,
+        "permissions": permissions
+    }
+
+@app.patch("/users/me/password")
+def change_password(
+    password_data: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Change user password"""
+    user = get_user_by_email(db, current_user["email"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify current password
+    if not verify_password(password_data.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    
+    # Check if new passwords match
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New passwords do not match"
+        )
+    
+    # Update password
+    user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    # Log activity
+    log_activity(
+        db, user.id, ActivityType.UPDATE,
+        f"User {user.email} changed their password"
+    )
+    
+    return {"message": "Password changed successfully"}
+
+@app.post("/users/me/avatar", response_model=AvatarUploadResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload user profile picture"""
+    from PIL import Image
+    import os
+    from pathlib import Path
+    
+    user = get_user_by_email(db, current_user["email"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only JPEG, PNG, and WebP are allowed."
+        )
+    
+    # Validate file size (max 5MB)
+    file_size = 0
+    chunk_size = 1024 * 1024  # 1MB chunks
+    for chunk in iter(lambda: file.file.read(chunk_size), b""):
+        file_size += len(chunk)
+        if file_size > 5 * 1024 * 1024:  # 5MB
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large. Maximum size is 5MB."
+            )
+    
+    file.file.seek(0)  # Reset file pointer
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = Path("uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename
+    file_extension = file.filename.split(".")[-1]
+    filename = f"user_{user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+    file_path = upload_dir / filename
+    
+    # Save and resize image
+    try:
+        # Read image
+        image = Image.open(file.file)
+        
+        # Convert to RGB if necessary (for PNG with transparency)
+        if image.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            if image.mode == "P":
+                image = image.convert("RGBA")
+            background.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
+            image = background
+        
+        # Resize to 200x200
+        image = image.resize((200, 200), Image.Resampling.LANCZOS)
+        
+        # Save
+        image.save(file_path, quality=85, optimize=True)
+        
+        # Delete old avatar if exists
+        if user.avatar_url:
+            old_path = Path(user.avatar_url)
+            if old_path.exists():
+                old_path.unlink()
+        
+        # Update user
+        user.avatar_url = str(file_path)
+        db.commit()
+        
+        # Log activity
+        log_activity(
+            db, user.id, ActivityType.UPLOAD,
+            f"User {user.email} uploaded a new profile picture"
+        )
+        
+        return {
+            "avatar_url": str(file_path),
+            "message": "Profile picture uploaded successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process image: {str(e)}"
+        )
+
+@app.delete("/users/me/avatar")
+def delete_avatar(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove user profile picture"""
+    from pathlib import Path
+    
+    user = get_user_by_email(db, current_user["email"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.avatar_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile picture to remove"
+        )
+    
+    # Delete file
+    file_path = Path(user.avatar_url)
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Update user
+    user.avatar_url = None
+    db.commit()
+    
+    # Log activity
+    log_activity(
+        db, user.id, ActivityType.REMOVE,
+        f"User {user.email} removed their profile picture"
+    )
+    
+    return {"message": "Profile picture removed successfully"}
 
 # ==================== USER DROPDOWN ROUTES (FOR ALL AUTHENTICATED USERS) ====================
 
@@ -1165,7 +1379,7 @@ def get_department_assets(
 @app.get("/activities", response_model=List[ActivityLogResponse])
 def get_activities(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),  # ✅ Admin/Manager only
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),  # Admin/Manager only
     skip: int = 0,
     limit: int = 25,  # Changed default to 25 per your request
     action_type: Optional[ActivityType] = None,

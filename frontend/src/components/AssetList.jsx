@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { FaPlus, FaHistory, FaExchangeAlt, FaEye, FaEdit } from 'react-icons/fa'
+import { FaPlus } from 'react-icons/fa'
 import axiosInstance from '../api/axios'
-import AssetHistoryModal from './AssetHistoryModal' 
+import AssetHistoryModal from './AssetHistoryModal'
+import AssetDrawer from './Assetdrawer'
 import { getDisplayName } from '../utils/helpers'
+import { formatCurrency, formatNumber } from '../utils/formatters'
 
 const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -11,19 +13,20 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
   const [filterDepartment, setFilterDepartment] = useState('')
   const [selectedAsset, setSelectedAsset] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
-  const [showTransfer, setShowTransfer] = useState(false)
+  const [showDrawer, setShowDrawer] = useState(false)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [assetTypes, setAssetTypes] = useState([])
   const [departments, setDepartments] = useState([])
   const [users, setUsers] = useState([])
+  
+  // Transfer data
   const [transferData, setTransferData] = useState({
     assigned_to_id: '',
     notes: ''
   })
-  const [assignmentHistory, setAssignmentHistory] = useState([])
   
-  // ✅ NEW: Edit modal states
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingAsset, setEditingAsset] = useState(null)
+  // Edit data
   const [editFormData, setEditFormData] = useState({
     model: '',
     serial: '',
@@ -70,56 +73,21 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
     return matchesSearch && matchesType && matchesStatus && matchesDepartment
   })
 
-  // Fetch assignment history for an asset
-  const fetchAssignmentHistory = async (assetId) => {
-    try {
-      const response = await axiosInstance.get(`/assets/${assetId}/history`)
-      setAssignmentHistory(response.data)
-    } catch (err) {
-      console.error('Failed to fetch assignment history:', err)
-      setAssignmentHistory([])
-    }
+  // Handle row click - open drawer
+  const handleRowClick = (asset) => {
+    setSelectedAsset(asset)
+    setShowDrawer(true)
   }
 
-  const viewAssetHistory = async (asset) => {
+  // Handle view history from drawer
+  const handleViewHistory = (asset) => {
+    setShowDrawer(false)
     setSelectedAsset(asset)
-    await fetchAssignmentHistory(asset.id)
     setShowHistory(true)
   }
 
-  const openTransferModal = (asset) => {
-    setSelectedAsset(asset)
-    setTransferData({
-      assigned_to_id: '',
-      notes: ''
-    })
-    setShowTransfer(true)
-  }
-
-  const handleTransfer = async () => {
-    if (!transferData.assigned_to_id) {
-      alert('Please select a user to transfer the asset to')
-      return
-    }
-
-    try {
-      await axiosInstance.post(`/assets/${selectedAsset.id}/assign`, transferData)
-      
-      // Get the assigned user from the users list (already fetched)
-      const assignedUser = users.find(u => u.id === parseInt(transferData.assigned_to_id))
-      const userName = assignedUser ? getDisplayName(assignedUser) : 'the user'
-      
-      alert(`Asset transferred successfully to ${userName}! Notification has been sent.`)
-      setShowTransfer(false)
-      onRefresh() // Refresh the asset list
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to transfer asset')
-    }
-  }
-
-  // ✅ NEW: Handle edit click
-  const handleEditClick = (asset) => {
-    setEditingAsset(asset)
+  // Handle edit from drawer
+  const handleEditFromDrawer = (asset) => {
     setEditFormData({
       model: asset.model,
       serial: asset.serial,
@@ -130,21 +98,56 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
       department_id: asset.department_id || '',
       assignee_id: asset.assignee_id || ''
     })
+    setShowDrawer(false)
     setShowEditModal(true)
   }
 
-  // ✅ NEW: Handle edit submit
+  // Handle transfer from drawer
+  const handleTransferFromDrawer = (asset) => {
+    setTransferData({
+      assigned_to_id: '',
+      notes: ''
+    })
+    setShowDrawer(false)
+    setShowTransferModal(true)
+  }
+
+  // Submit edit
   const handleEditSubmit = async () => {
-    if (!editingAsset) return
+    if (!selectedAsset) return
 
     try {
-      await axiosInstance.patch(`/assets/${editingAsset.id}`, editFormData)
+      await axiosInstance.patch(`/assets/${selectedAsset.id}`, editFormData)
       alert('Asset updated successfully!')
       setShowEditModal(false)
-      setEditingAsset(null)
+      setSelectedAsset(null)
       onRefresh()
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to update asset')
+    }
+  }
+
+  // Submit transfer
+  const handleTransferSubmit = async () => {
+    if (!selectedAsset) return
+    
+    if (!transferData.assigned_to_id) {
+      alert('Please select a user to transfer the asset to')
+      return
+    }
+
+    try {
+      await axiosInstance.post(`/assets/${selectedAsset.id}/assign`, transferData)
+      
+      const assignedUser = users.find(u => u.id === parseInt(transferData.assigned_to_id))
+      const userName = assignedUser ? getDisplayName(assignedUser) : 'the user'
+      
+      alert(`Asset transferred successfully to ${userName}! Notification has been sent.`)
+      setShowTransferModal(false)
+      setSelectedAsset(null)
+      onRefresh()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to transfer asset')
     }
   }
 
@@ -232,7 +235,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
         <div className="stat-card">
           <div className="stat-content">
             <h3>Total Assets</h3>
-            <div className="stat-number">{filteredAssets.length}</div>
+            <div className="stat-number">{formatNumber(filteredAssets.length, 0)}</div>
             <div className="stat-trend">Filtered results</div>
           </div>
         </div>
@@ -241,7 +244,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
           <div className="stat-content">
             <h3>Active</h3>
             <div className="stat-number">
-              {filteredAssets.filter(a => a.status === 'Active').length}
+              {formatNumber(filteredAssets.filter(a => a.status === 'Active').length, 0)}
             </div>
             <div className="stat-trend">In use</div>
           </div>
@@ -251,7 +254,7 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
           <div className="stat-content">
             <h3>Available</h3>
             <div className="stat-number">
-              {filteredAssets.filter(a => a.status === 'Available').length}
+              {formatNumber(filteredAssets.filter(a => a.status === 'Available').length, 0)}
             </div>
             <div className="stat-trend">Ready to assign</div>
           </div>
@@ -263,7 +266,10 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
       ) : (
         <div className="card">
           <div className="card-header">
-            <h3>Assets ({filteredAssets.length})</h3>
+            <h3>Assets ({formatNumber(filteredAssets.length, 0)})</h3>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#6c757d' }}>
+              Click on any row to view details
+            </p>
           </div>
           <div className="card-body" style={{ padding: '0' }}>
             <table className="assets-table">
@@ -275,20 +281,40 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
                   <th>Status</th>
                   <th>Assignee</th>
                   <th>Department</th>
-                  <th>Location</th>
-                  <th>Actions</th>
+                  <th>Cost</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAssets.map(asset => {
                   const statusColors = getStatusColor(asset.status)
                   return (
-                    <tr key={asset.id}>
+                    <tr 
+                      key={asset.id}
+                      onClick={() => handleRowClick(asset)}
+                      style={{ 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f0f3ff'
+                        e.currentTarget.style.transform = 'translateX(4px)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.transform = 'translateX(0)'
+                      }}
+                    >
                       <td>
-                        <strong>{asset.id}</strong>
+                        <strong style={{ 
+                          fontFamily: 'monospace',
+                          color: '#007bff',
+                          fontSize: '0.95rem'
+                        }}>
+                          {asset.id}
+                        </strong>
                       </td>
                       <td>{asset.model}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#6c757d' }}>
                         {asset.serial}
                       </td>
                       <td>
@@ -304,73 +330,22 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
                         </span>
                       </td>
                       <td>
-  {asset.assignee ? (
-    <div>
-      <div style={{ fontWeight: '600' }}>
-        {getDisplayName(asset.assignee)}
-      </div>
-      <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
-        {asset.assignee.email}
-      </div>
-    </div>
-  ) : (
-    <span style={{ color: '#6c757d' }}>Unassigned</span>
-  )}
-</td>
+                        {asset.assignee ? (
+                          <div>
+                            <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                              {getDisplayName(asset.assignee)}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                              {asset.assignee.email}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#999', fontStyle: 'italic' }}>Unassigned</span>
+                        )}
+                      </td>
                       <td>{asset.department?.name || 'Unassigned'}</td>
-                      <td>{asset.location || 'N/A'}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {/* View History - Everyone can see */}
-                          <button 
-                            className="btn btn-sm btn-outline"
-                            onClick={() => viewAssetHistory(asset)}
-                            title="View assignment history"
-                            style={{
-                              background: '#17a2b8',
-                              color: 'white',
-                              border: 'none'
-                            }}
-                          >
-                            <FaHistory size={12} />
-                          </button>
-                          
-                          {/* ✅ NEW: Edit button - Manager/Admin only */}
-                          {(user?.role === 'Admin' || user?.role === 'Manager') && (
-                            <button 
-                              className="btn btn-sm btn-outline"
-                              onClick={() => handleEditClick(asset)}
-                              title="Edit asset"
-                              style={{
-                                background: '#ffc107',
-                                color: 'white',
-                                border: 'none'
-                              }}
-                            >
-                              <FaEdit size={12} />
-                            </button>
-                          )}
-                          
-                          {/* Transfer - Manager/Admin only */}
-                          {asset.status !== 'Retired' && (user?.role === 'Admin' || user?.role === 'Manager') && (
-                            <button 
-                              className="btn btn-sm btn-primary"
-                              onClick={() => openTransferModal(asset)}
-                              title="Transfer asset"
-                            >
-                              <FaExchangeAlt size={12} />
-                            </button>
-                          )}
-                          
-                          {/* View Details - Everyone can see */}
-                          <button 
-                            className="btn btn-sm btn-info"
-                            onClick={() => {/* Add view details functionality */}}
-                            title="View asset details"
-                          >
-                            <FaEye size={12} />
-                          </button>
-                        </div>
+                      <td style={{ fontWeight: 'bold', color: '#28a745' }}>
+                        {formatCurrency(asset.cost)}
                       </td>
                     </tr>
                   )
@@ -381,17 +356,24 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
         </div>
       )}
 
-      {/* Asset History Modal */}
-      {showHistory && selectedAsset && (
-        <AssetHistoryModal 
-          assetId={selectedAsset.id}
-          onClose={() => setShowHistory(false)}
+      {/* Asset Drawer */}
+      {showDrawer && selectedAsset && (
+        <AssetDrawer
+          asset={selectedAsset}
+          onClose={() => {
+            setShowDrawer(false)
+            setSelectedAsset(null)
+          }}
+          onRefresh={onRefresh}
           user={user}
+          onViewHistory={handleViewHistory}
+          onEdit={handleEditFromDrawer}
+          onTransfer={handleTransferFromDrawer}
         />
       )}
 
-      {/* ✅ NEW: Edit Asset Modal */}
-      {showEditModal && editingAsset && (
+      {/* Transfer Modal */}
+      {showTransferModal && selectedAsset && (
         <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
@@ -402,7 +384,103 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 10000
+        }}>
+          <div className="modal" style={{
+            background: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            maxWidth: '500px',
+            width: '90%'
+          }}>
+            <div className="modal-header" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              borderBottom: '1px solid #eaeaea',
+              paddingBottom: '10px'
+            }}>
+              <h3>Transfer Asset - {selectedAsset.id}</h3>
+              <button 
+                onClick={() => {
+                  setShowTransferModal(false)
+                  setSelectedAsset(null)
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Transfer to User *</label>
+                <select
+                  value={transferData.assigned_to_id}
+                  onChange={(e) => setTransferData({...transferData, assigned_to_id: e.target.value})}
+                  className="form-control"
+                  required
+                >
+                  <option value="">Select User</option>
+                  {users.filter(u => u.id !== selectedAsset.assignee_id).map(u => (
+                    <option key={u.id} value={u.id}>
+                      {getDisplayName(u)} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Transfer Notes</label>
+                <textarea
+                  value={transferData.notes}
+                  onChange={(e) => setTransferData({...transferData, notes: e.target.value})}
+                  className="form-control"
+                  placeholder="Reason for transfer..."
+                  rows="3"
+                />
+              </div>
+
+              <div className="form-actions">
+                <button 
+                  className="btn btn-success"
+                  onClick={handleTransferSubmit}
+                >
+                  Transfer Asset
+                </button>
+                <button 
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setShowTransferModal(false)
+                    setSelectedAsset(null)
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedAsset && (
+        <div className="modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
         }}>
           <div className="modal" style={{
             background: 'white',
@@ -421,9 +499,12 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
               borderBottom: '1px solid #eaeaea',
               paddingBottom: '10px'
             }}>
-              <h3>Edit Asset - {editingAsset.id}</h3>
+              <h3>Edit Asset - {selectedAsset.id}</h3>
               <button 
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedAsset(null)
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -532,7 +613,10 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
                 </button>
                 <button 
                   className="btn btn-outline"
-                  onClick={() => setShowEditModal(false)}
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setSelectedAsset(null)
+                  }}
                 >
                   Cancel
                 </button>
@@ -542,94 +626,16 @@ const AssetList = ({ assets, loading, onRefresh, onNewAssetClick, user }) => {
         </div>
       )}
 
-      {/* Transfer Asset Modal */}
-      {showTransfer && selectedAsset && (
-        <div className="modal-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div className="modal" style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '20px',
-            maxWidth: '500px',
-            width: '90%'
-          }}>
-            <div className="modal-header" style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-              borderBottom: '1px solid #eaeaea',
-              paddingBottom: '10px'
-            }}>
-              <h3>Transfer Asset - {selectedAsset.id}</h3>
-              <button 
-                onClick={() => setShowTransfer(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer'
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Transfer to User *</label>
-                <select
-                  value={transferData.assigned_to_id}
-                  onChange={(e) => setTransferData({...transferData, assigned_to_id: e.target.value})}
-                  className="form-control"
-                  required
-                >
-                  <option value="">Select User</option>
-                  {users.filter(u => u.id !== selectedAsset.assignee_id).map(u => (
-                    <option key={u.id} value={u.id}>
-                      {getDisplayName(u)} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label>Transfer Notes</label>
-                <textarea
-                  value={transferData.notes}
-                  onChange={(e) => setTransferData({...transferData, notes: e.target.value})}
-                  className="form-control"
-                  placeholder="Reason for transfer..."
-                  rows="3"
-                />
-              </div>
-
-              <div className="form-actions">
-                <button 
-                  className="btn btn-success"
-                  onClick={handleTransfer}
-                >
-                  Transfer Asset
-                </button>
-                <button 
-                  className="btn btn-outline"
-                  onClick={() => setShowTransfer(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Asset History Modal */}
+      {showHistory && selectedAsset && (
+        <AssetHistoryModal 
+          assetId={selectedAsset.id}
+          onClose={() => {
+            setShowHistory(false)
+            setSelectedAsset(null)
+          }}
+          user={user}
+        />
       )}
     </div>
   )

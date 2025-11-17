@@ -14,6 +14,7 @@ import {
   FiList,
   FiRefreshCw
 } from 'react-icons/fi'
+import { formatCurrency, formatNumber } from '../utils/formatters'
 
 const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
   const [summary, setSummary] = useState(null)
@@ -148,7 +149,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Total Assets</h3>
-            <div className="stat-number">{displaySummary.total_assets}</div>
+            <div className="stat-number">{formatNumber(displaySummary.total_assets, 0)}</div>
             <div className="stat-trend">All devices in inventory</div>
           </div>
           <div className="stat-icon" style={{ color: '#4361ee' }}>
@@ -162,7 +163,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Active Assets</h3>
-            <div className="stat-number">{displaySummary.active_assets}</div>
+            <div className="stat-number">{formatNumber(displaySummary.active_assets, 0)}</div>
             <div className="stat-trend">Currently in use</div>
           </div>
           <div className="stat-icon">
@@ -176,7 +177,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Available Assets</h3>
-            <div className="stat-number">{displaySummary.available_assets}</div>
+            <div className="stat-number">{formatNumber(displaySummary.available_assets, 0)}</div>
             <div className="stat-trend">Ready to deploy</div>
           </div>
           <div className="stat-icon">
@@ -190,7 +191,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Under Maintenance</h3>
-            <div className="stat-number">{displaySummary.maintenance_assets}</div>
+            <div className="stat-number">{formatNumber(displaySummary.maintenance_assets, 0)}</div>
             <div className="stat-trend">Being serviced</div>
           </div>
           <div className="stat-icon">
@@ -204,7 +205,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Software Licenses</h3>
-            <div className="stat-number">{totalLicenses}</div>
+            <div className="stat-number">{formatNumber(totalLicenses, 0)}</div>
             <div className="stat-trend">Total licenses</div>
           </div>
           <div className="stat-icon" style={{ color: '#6f42c1' }}>
@@ -218,7 +219,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Active Licenses</h3>
-            <div className="stat-number">{activeLicenses}</div>
+            <div className="stat-number">{formatNumber(activeLicenses, 0)}</div>
             <div className="stat-trend">Currently active</div>
           </div>
           <div className="stat-icon">
@@ -234,11 +235,10 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Total Asset Value</h3>
-            <div className="stat-number">₵{displaySummary.total_asset_cost?.toFixed(2) || '0.00'}</div>
+            <div className="stat-number">{formatCurrency(displaySummary.total_asset_cost)}</div>
             <div className="stat-trend">Total investment</div>
           </div>
           <div className="stat-icon" style={{ color: '#28a745' }}>
-            
           </div>
         </div>
       </div>
@@ -247,7 +247,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Maintenance Cost</h3>
-            <div className="stat-number">₵{displaySummary.total_maintenance_cost?.toFixed(2) || '0.00'}</div>
+            <div className="stat-number">{formatCurrency(displaySummary.total_maintenance_cost)}</div>
             <div className="stat-trend">Service expenses</div>
           </div>
           <div className="stat-icon">
@@ -260,7 +260,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Retired Assets</h3>
-            <div className="stat-number">{retiredAssets}</div>
+            <div className="stat-number">{formatNumber(retiredAssets, 0)}</div>
             <div className="stat-trend">No longer in use</div>
           </div>
           <div className="stat-icon" style={{ color: '#6c757d' }}>
@@ -274,7 +274,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         <div className="stat-header">
           <div className="stat-content">
             <h3>Expired Licenses</h3>
-            <div className="stat-number">{expiredLicenses}</div>
+            <div className="stat-number">{formatNumber(expiredLicenses, 0)}</div>
             <div className="stat-trend">Need renewal</div>
           </div>
           <div className="stat-icon">
@@ -322,7 +322,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
           ) : (
             <div>
               <p style={{ marginBottom: '20px' }}>
-                You have <strong>{totalAssets}</strong> assets and <strong>{totalLicenses}</strong> software licenses in your inventory.
+                You have <strong>{formatNumber(totalAssets, 0)}</strong> assets and <strong>{formatNumber(totalLicenses, 0)}</strong> software licenses in your inventory.
               </p>
               <div className="quick-actions">
                 {getRoleBasedActions().map((action, index) => (
@@ -362,7 +362,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
                   borderBottom: '1px solid #eaeaea'
                 }}>
                   <span style={{ color: '#6c757d' }}>{dept}</span>
-                  <strong>{count}</strong>
+                  <strong>{formatNumber(count, 0)}</strong>
                 </div>
               ))}
             </div>
@@ -379,7 +379,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
                   borderBottom: '1px solid #eaeaea'
                 }}>
                   <span style={{ color: '#6c757d' }}>{type}</span>
-                  <strong>{count}</strong>
+                  <strong>{formatNumber(count, 0)}</strong>
                 </div>
               ))}
             </div>
@@ -409,7 +409,7 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
                     }}></div>
                     {status}
                   </span>
-                  <strong>{count}</strong>
+                  <strong>{formatNumber(count, 0)}</strong>
                 </div>
               ))}
             </div>

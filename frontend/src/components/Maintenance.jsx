@@ -316,7 +316,6 @@ const Maintenance = ({ assets, maintenance, onAddMaintenance, onRefresh, user })
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <FiDollarSign size={14} />
                           <strong>₵{record.cost?.toFixed(2) || '0.00'}</strong>
                         </div>
                       </td>

@@ -35,6 +35,8 @@ class ActivityType(str, enum.Enum):
     EXPORTLOGS = "EXPORTLOGS"
     DEACTIVATE = "DEACTIVATE" 
     REACTIVATE = "REACTIVATE" 
+    REMOVE = "REMOVE"
+    UPLOAD = "UPLOAD"
 
 # ==================== MODELS ====================
 
@@ -48,6 +50,7 @@ class User(Base):
     company = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.VIEWER, nullable=False)
     is_active = Column(Boolean, default=True)
+    avatar_url = Column(String, nullable=True) 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

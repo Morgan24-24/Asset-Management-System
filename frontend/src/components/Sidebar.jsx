@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   FaTachometerAlt, 
   FaDesktop, 
@@ -11,21 +11,32 @@ import {
   FaUsers,
   FaChartBar, 
   FaUserCircle,
-  FaHistory
+  FaHistory,
+  FaCog
 } from 'react-icons/fa'
 import './Sidebar.css'
 import { getDisplayName, getUserInitials } from '../utils/helpers'
 
-// Sidebar component for navigation and user actions
 const Sidebar = ({ 
   currentView, 
   setCurrentView, 
-  isSidebarOpen, 
-  toggleSidebar, 
   onLogout,
-  menuItems = [],
   user 
 }) => {
+  // Get initial collapsed state from localStorage (default: collapsed on desktop)
+  const getInitialCollapsedState = () => {
+    const saved = localStorage.getItem('sidebarCollapsed')
+    if (saved !== null) {
+      return saved === 'true'
+    }
+    // Default: collapsed on desktop, hidden on mobile
+    return window.innerWidth > 768
+  }
+
+  const [isCollapsed, setIsCollapsed] = useState(getInitialCollapsedState())
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [hoveredItem, setHoveredItem] = useState(null)
+
   // Default menu items with role-based access
   const defaultMenuItems = [
     { id: 'dashboard', icon: FaTachometerAlt, label: 'Dashboard', roles: ['Admin', 'Manager', 'Viewer'] },
@@ -36,18 +47,47 @@ const Sidebar = ({
     { id: 'users', icon: FaUsers, label: 'User Management', roles: ['Admin'] },
     { id: 'activity-logs', icon: FaHistory, label: 'Activity Logs', roles: ['Admin', 'Manager'] },
     { id: 'reports', icon: FaChartBar, label: 'Reports', roles: ['Admin', 'Manager'] },
+    { id: 'settings', icon: FaCog, label: 'Settings', roles: ['Admin', 'Manager', 'Viewer'] },
   ]
 
-  // Use provided menuItems or default, filtered by user role
-  const effectiveMenuItems = menuItems.length > 0 ? menuItems : 
-    defaultMenuItems.filter(item => user ? item.roles.includes(user.role) : false)
+  const menuItems = defaultMenuItems.filter(item => 
+    user ? item.roles.includes(user.role) : false
+  )
 
-  // Handle navigation to different views
+  // Save collapsed state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', isCollapsed.toString())
+  }, [isCollapsed])
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setIsMobileOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Toggle sidebar
+  const toggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      // Mobile: toggle overlay
+      setIsMobileOpen(!isMobileOpen)
+    } else {
+      // Desktop: toggle collapsed
+      setIsCollapsed(!isCollapsed)
+    }
+  }
+
+  // Handle navigation
   const handleNavigation = (view) => {
     setCurrentView(view)
-    // Auto-close sidebar on mobile after navigation
+    // Auto-close on mobile
     if (window.innerWidth <= 768) {
-      toggleSidebar()
+      setIsMobileOpen(false)
     }
   }
 
@@ -61,104 +101,154 @@ const Sidebar = ({
     }
   }
 
+  const isMobile = window.innerWidth <= 768
+  const sidebarClass = isMobile 
+    ? `sidebar sidebar-mobile ${isMobileOpen ? 'mobile-open' : ''}`
+    : `sidebar ${isCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`
+
   return (
     <>
-      {/* Sidebar */}
-      <div className={`sidebar ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-        {/* Hamburger Menu Button - Inside sidebar */}
+      {/* Mobile Hamburger Button (floating in main content) */}
+      {isMobile && (
         <button 
-          className="hamburger-menu-inside"
+          className="mobile-hamburger"
           onClick={toggleSidebar}
-          aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
+          aria-label="Toggle menu"
         >
-          {isSidebarOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
+          <FaBars size={24} />
         </button>
+      )}
 
+      {/* Sidebar */}
+      <div className={sidebarClass}>
+       
+        {/* Header with Hamburger */}
         <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="logo-icon">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="8" fill="#4361ee"/>
-                <path d="M16 8L8 12v8c0 5 3.5 7 8 7s8-2 8-7v-8l-8-4z" fill="white"/>
-                <circle cx="16" cy="16" r="3" fill="#4361ee"/>
-              </svg>
+          {(!isCollapsed || isMobile) && (
+            <div className="sidebar-logo">
+              <div className="logo-icon">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="#4361ee"/>
+                  <path d="M16 8L8 12v8c0 5 3.5 7 8 7s8-2 8-7v-8l-8-4z" fill="white"/>
+                  <circle cx="16" cy="16" r="3" fill="#4361ee"/>
+                </svg>
+              </div>
+              <div className="logo-text">
+                <h2>AssetHub</h2>
+                <p>Asset Management</p>
+              </div>
             </div>
-            <div>
-              <h2>AssetHub</h2>
-              <p style={{ 
-                fontSize: '0.75rem', 
-                color: 'rgba(255,255,255,0.7)', 
-                margin: 0,
-                marginTop: '2px'
-              }}>
-                Asset Management
-              </p>
-            </div>
-          </div>
+          )}
+
+          <button 
+            className="sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isMobile ? <FaTimes size={20} /> : <FaBars size={20} />}
+          </button>
         </div>
         
+        {/* Menu Items */}
         <nav className="sidebar-menu">
-          {effectiveMenuItems.map(({ id, icon: Icon, label }) => (
-            <button
+          {menuItems.map(({ id, icon: Icon, label }) => (
+            <div 
               key={id}
-              className={`menu-item ${currentView === id ? 'active' : ''}`}
-              onClick={() => handleNavigation(id)}
-              aria-current={currentView === id ? 'page' : undefined}
+              className="menu-item-wrapper"
+              onMouseEnter={() => setHoveredItem(id)}
+              onMouseLeave={() => setHoveredItem(null)}
             >
-              <Icon className="menu-icon" size={18} />
-              <span className="menu-text">{label}</span>
-              {currentView === id && <span className="active-indicator" />}
-            </button>
+              <button
+                className={`menu-item ${currentView === id ? 'active' : ''}`}
+                onClick={() => handleNavigation(id)}
+                aria-current={currentView === id ? 'page' : undefined}
+              >
+                <Icon className="menu-icon" size={20} />
+                {(!isCollapsed || isMobile) && (
+                  <span className="menu-text">{label}</span>
+                )}
+                {currentView === id && <span className="active-indicator" />}
+              </button>
+
+              {/* Tooltip for collapsed state */}
+              {isCollapsed && !isMobile && hoveredItem === id && (
+                <div className="menu-tooltip">{label}</div>
+              )}
+            </div>
           ))}
+
+          {/* Spacer to push logout to bottom */}
+          <div className="menu-spacer"></div>
           
-          {/* Sign Out Button - Separate */}
-          <button
-            className="menu-item logout-item"
-            onClick={onLogout}
+          {/* Sign Out Button */}
+          <div 
+            className="menu-item-wrapper"
+            onMouseEnter={() => setHoveredItem('logout')}
+            onMouseLeave={() => setHoveredItem(null)}
           >
-            <FaSignOutAlt className="menu-icon" size={18} />
-            <span className="menu-text">Sign Out</span>
-          </button>
+            <button
+              className="menu-item logout-item"
+              onClick={onLogout}
+            >
+              <FaSignOutAlt className="menu-icon" size={20} />
+              {(!isCollapsed || isMobile) && (
+                <span className="menu-text">Sign Out</span>
+              )}
+            </button>
+
+            {/* Tooltip for logout */}
+            {isCollapsed && !isMobile && hoveredItem === 'logout' && (
+              <div className="menu-tooltip">Sign Out</div>
+            )}
+          </div>
         </nav>
 
+        {/* User Info Footer */}
         <div className="sidebar-footer">
           <div className="user-badge">
             <div 
-  className="user-avatar"
-  style={{ 
-    background: user ? getRoleColor(user.role) : '#4361ee',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-    fontSize: '1.2rem'
-  }}
->
-  {user ? getUserInitials(user) : 'U'}
-</div>
-<div className="user-info">
-  <span className="user-name">
-    {user ? getDisplayName(user) : 'User'}
-  </span>
-              <span className="user-role-badge" style={{
-                display: 'inline-block',
-                padding: '4px 10px',
-                borderRadius: '12px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                marginTop: '4px',
-                background: user ? getRoleColor(user.role) : '#6c757d',
-                color: 'white'
-              }}>
-                {user ? user.role : 'User'}
-              </span>
+              className="user-avatar"
+              style={{ 
+                background: user?.avatar_url ? 'transparent' : (user ? getRoleColor(user.role) : '#4361ee'),
+                overflow: 'hidden'
+              }}
+            >
+              {user?.avatar_url ? (
+                <img 
+                  src={`http://localhost:8000/${user.avatar_url}`} 
+                  alt={getDisplayName(user)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover'
+                  }}
+                />
+              ) : (
+                user ? getUserInitials(user) : 'U'
+              )}
             </div>
+            
+            {(!isCollapsed || isMobile) && (
+              <div className="user-info">
+                <span className="user-name">
+                  {user ? getDisplayName(user) : 'User'}
+                </span>
+                <span 
+                  className="user-role-badge" 
+                  style={{
+                    background: user ? getRoleColor(user.role) : '#6c757d',
+                  }}
+                >
+                  {user ? user.role : 'User'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Overlay for mobile when sidebar is open */}
-      {isSidebarOpen && (
+      {/* Mobile Overlay */}
+      {isMobile && isMobileOpen && (
         <div className="sidebar-overlay" onClick={toggleSidebar} />
       )}
     </>

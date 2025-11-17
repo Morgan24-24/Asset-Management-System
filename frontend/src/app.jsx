@@ -12,6 +12,8 @@ import UsersManagement from './components/UsersManagement'
 import Reports from './components/Reports'
 import Department from './pages/Departments'
 import ActivityLogs from './pages/ActivityLogs'
+import Settings from './components/Settings'
+
 
 // Protected Route Component - checks for authentication token
 function ProtectedRoute({ children }) {
@@ -31,15 +33,10 @@ function MainApp() {
   const [licenses, setLicenses] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [user, setUser] = useState(null)
   
   const location = useLocation()
   const navigate = useNavigate()
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen)
-  }
 
   // Get current view from URL path
   const getCurrentView = () => {
@@ -53,6 +50,7 @@ function MainApp() {
     if (path === '/users') return 'users'
     if (path === '/activity-logs') return 'activity-logs'
     if (path === '/reports') return 'reports'
+    if (path === '/settings') return 'settings'
     return 'dashboard'
   }
 
@@ -69,17 +67,20 @@ function MainApp() {
       departments: '/departments',
       users: '/users',
       'activity-logs': '/activity-logs',
-      reports: '/reports'
+      reports: '/reports',
+      settings: '/settings'
     }
     navigate(routes[view] || '/dashboard')
   }
 
   // Fetch current user info from API
   const fetchUser = async () => {
+    console.log('fetchUser called')
     try {
       const response = await axiosInstance.get('/users/me') 
+      console.log('User data fetched:', response.data)
       setUser(response.data)
-    } catch (err) {
+  } catch (err) {
       console.error('Error fetching user:', err)
     }
   }
@@ -250,16 +251,14 @@ const handleLogout = async () => {
     <div className="app-container">
       {/* Sidebar */}
       <Sidebar 
-        currentView={currentView} 
-        setCurrentView={navigateTo}
-        isSidebarOpen={isSidebarOpen}
-        toggleSidebar={toggleSidebar}
-        onLogout={handleLogout}
-        user={user}
-      />
+  currentView={currentView} 
+  setCurrentView={navigateTo}
+  onLogout={handleLogout}
+  user={user}
+/>
 
       {/* Main Content */}
-      <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
+      <div className="main-content">
         {error && (
           <div className="alert alert-danger">
             {error}
@@ -376,6 +375,13 @@ const handleLogout = async () => {
           />
         )}
 
+        {currentView === 'settings' && (
+  <Settings 
+    user={user}
+    onUserUpdate={fetchUser}
+  />
+)}
+
         {/* Access denied messages */}
         {currentView === 'users' && !hasPermission('Admin') && (
           <div className="alert alert-danger">
@@ -412,96 +418,105 @@ const handleLogout = async () => {
 // Main App Router
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        {/* Signup route removed - only admin can create users */}
-        
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/assets" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/assets/create" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/maintenance" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/licenses" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/departments" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/users" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/activity-logs" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          {/* Signup route removed - only admin can create users */}
+          
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/assets" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/assets/create" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/maintenance" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/licenses" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/departments" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/users" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/activity-logs" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
 
-        <Route 
-          path="/reports" 
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Redirect any unknown routes to dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+          <Route 
+            path="/reports" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Redirect any unknown routes to dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
   )
 }
 

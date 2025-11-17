@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import axiosInstance from '../api/axios'
-import { FiPlus, FiEdit2, FiTrash2, FiUser, FiBriefcase, FiShield, FiCheckCircle, FiXCircle } from 'react-icons/fi'
+import { FiPlus } from 'react-icons/fi'
 import PermissionsCheckbox from './PermissionsCheckbox'
+import UserDetailDrawer from './UserDetailDrawer'
+import { formatNumber } from '../utils/formatters'
 
 const UsersManagement = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     display_name: '',
@@ -240,6 +244,18 @@ const UsersManagement = () => {
     }
   }
 
+  // Handle row click to open drawer
+  const handleRowClick = (user) => {
+    setSelectedUser(user)
+    setIsDrawerOpen(true)
+  }
+
+  // Close drawer
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false)
+    setTimeout(() => setSelectedUser(null), 300) // Clear after animation
+  }
+
   return (
     <div>
       <div className="header">
@@ -250,6 +266,33 @@ const UsersManagement = () => {
         >
           <FiPlus size={18} /> Add User
         </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="stats-grid" style={{ marginBottom: '20px' }}>
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>Total Users</h3>
+            <div className="stat-number">{formatNumber(users.length, 0)}</div>
+            <div className="stat-trend">All users</div>
+          </div>
+        </div>
+        
+        <div className="stat-card success">
+          <div className="stat-content">
+            <h3>Active</h3>
+            <div className="stat-number">{formatNumber(users.filter(u => u.is_active).length, 0)}</div>
+            <div className="stat-trend">Active users</div>
+          </div>
+        </div>
+        
+        <div className="stat-card warning">
+          <div className="stat-content">
+            <h3>Inactive</h3>
+            <div className="stat-number">{formatNumber(users.filter(u => !u.is_active).length, 0)}</div>
+            <div className="stat-trend">Deactivated</div>
+          </div>
+        </div>
       </div>
 
       {showForm && (
@@ -376,7 +419,7 @@ const UsersManagement = () => {
       )}
 
       {/* User List */}
-      <div className="card">
+      <div className={`card ${isDrawerOpen ? 'blurred' : ''}`}>
         <div className="card-header">
           <h3>System Users ({users.length})</h3>
         </div>
@@ -384,139 +427,53 @@ const UsersManagement = () => {
           {users.length === 0 ? (
             <div className="loading">No users found</div>
           ) : (
-            <table className="table">
+            <table className="table users-table">
               <thead>
                 <tr>
                   <th>User</th>
                   <th>Company</th>
                   <th>Role</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.id}>
+                  <tr 
+                    key={user.id} 
+                    onClick={() => handleRowClick(user)}
+                    className={`user-row ${!user.is_active ? 'inactive-user' : ''}`}
+                  >
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          background: user.is_active ? getRoleColor(user.role) : '#6c757d',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontWeight: 'bold',
-                          opacity: user.is_active ? 1 : 0.5
-                        }}>
-                          <FiUser size={16} />
+                      <div className="user-cell">
+                        <div className="user-email">
+                          {user.email}
+                          {!user.is_active && (
+                            <span className="deactivated-label">(Deactivated)</span>
+                          )}
                         </div>
-                        <div>
-                          <div style={{ 
-                            fontWeight: '600',
-                            opacity: user.is_active ? 1 : 0.6,
-                            textDecoration: user.is_active ? 'none' : 'line-through'
-                          }}>
-                            {user.email}
-                            {!user.is_active && (
-                              <span style={{
-                                marginLeft: '8px',
-                                fontSize: '0.75rem',
-                                color: '#dc3545',
-                                fontWeight: 'normal'
-                              }}>
-                                (Deactivated)
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
-                            Joined: {new Date(user.created_at).toLocaleDateString()}
-                          </div>
+                        <div className="user-joined">
+                          Joined: {new Date(user.created_at).toLocaleDateString()}
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FiBriefcase size={14} />
-                        {user.company}
-                      </div>
+                      <span className="company-name">{user.company}</span>
                     </td>
                     <td>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: getRoleColor(user.role) + '20',
-                        color: getRoleColor(user.role)
-                      }}>
-                        <FiShield size={12} style={{ marginRight: '4px' }} />
+                      <span 
+                        className="role-badge"
+                        style={{
+                          backgroundColor: getRoleColor(user.role) + '20',
+                          color: getRoleColor(user.role)
+                        }}
+                      >
                         {user.role}
                       </span>
                     </td>
                     <td>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: user.is_active ? '#d4edda' : '#f8d7da',
-                        color: user.is_active ? '#155724' : '#721c24'
-                      }}>
+                      <span className={`status-badge ${user.is_active ? 'active' : 'inactive'}`}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          className="btn btn-sm btn-outline"
-                          onClick={() => handleEdit(user)}
-                          title="Edit user"
-                        >
-                          <FiEdit2 size={14} />
-                        </button>
-
-                        {user.is_active ? (
-                          <button
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleDeactivate(user.id, user.email)}
-                            title="Deactivate user"
-                          >
-                            <FiTrash2 size={14} />
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              className="btn btn-sm btn-success"
-                              onClick={() => handleReactivate(user.id, user.email)}
-                              title="Reactivate user"
-                              style={{
-                                background: '#28a745',
-                                color: 'white',
-                                border: 'none'
-                              }}
-                            >
-                              <FiCheckCircle size={14} />
-                            </button>
-                            
-                            {/* Permanent Delete Button - Only for Inactive Users */}
-                            <button
-                              className="btn btn-sm"
-                              onClick={() => handlePermanentDelete(user.id, user.email)}
-                              title="Permanently delete user (CANNOT BE UNDONE)"
-                              style={{
-                                background: '#721c24',
-                                color: 'white',
-                                border: 'none'
-                              }}
-                            >
-                              <FiXCircle size={14} />
-                            </button>
-                          </>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}
@@ -525,6 +482,17 @@ const UsersManagement = () => {
           )}
         </div>
       </div>
+
+      {/* User Detail Drawer */}
+      <UserDetailDrawer
+        user={selectedUser}
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        onEdit={handleEdit}
+        onDeactivate={handleDeactivate}
+        onReactivate={handleReactivate}
+        onPermanentDelete={handlePermanentDelete}
+      />
     </div>
   )
 }

@@ -1,5 +1,3 @@
-
-
 /* Custom Styles - Keep your existing design */
 * {
   margin: 0;
@@ -7,6 +5,7 @@
   box-sizing: border-box;
 }
 
+/* ==================== CSS VARIABLES ==================== */
 :root {
   --primary: #4361ee;
   --secondary: #6c757d;
@@ -21,6 +20,7 @@
   --sidebar-hover: #34495e;
   --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   --border-radius: 8px;
+  --border-color: #eaeaea;
 }
 
 body {
@@ -36,28 +36,29 @@ body {
   min-height: 100vh;
 }
 
-/* Main Content - Enhanced */
+/* Main Content */
 .main-content {
   flex: 1;
-  margin-left: 260px;
+  margin-left: 70px; /* Collapsed sidebar width */
   padding: 20px;
   background: #f5f7fb;
   min-height: 100vh;
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Mobile sidebar state */
-.main-content.sidebar-open {
-  margin-left: 260px;
+/* When sidebar is expanded (desktop only) */
+@media (min-width: 769px) {
+  .sidebar-expanded ~ .main-content {
+    margin-left: 260px;
+  }
 }
 
+/* Mobile - no margin, full width */
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
-  }
-  
-  .main-content.sidebar-open {
-    margin-left: 0;
+    padding: 15px;
+    padding-top: 80px; /* Space for hamburger button */
   }
 }
 
@@ -617,11 +618,6 @@ body {
 
 /* Responsive - Enhanced */
 @media (max-width: 768px) {
-  .main-content {
-    margin-left: 0;
-    padding: 15px;
-  }
-  
   .header {
     flex-direction: column;
     gap: 15px;
@@ -672,10 +668,6 @@ body {
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
-  .main-content {
-    margin-left: 220px;
-  }
-
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -698,4 +690,100 @@ body {
     box-shadow: none !important;
     border: 1px solid #ddd !important;
   }
+}
+
+/* ==================== USER MANAGEMENT STYLES ==================== */
+
+/* Blur effect when drawer is open */
+.card.blurred {
+  filter: blur(3px);
+  pointer-events: none;
+  transition: filter 0.3s ease;
+}
+
+/* Clickable user rows */
+.users-table tbody tr {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.users-table tbody tr:hover {
+  background: #f0f3ff !important;
+  transform: translateX(4px);
+}
+
+.users-table tbody tr.inactive-user {
+  opacity: 0.6;
+}
+
+.users-table tbody tr.inactive-user:hover {
+  opacity: 0.8;
+}
+
+/* User cell styling */
+.user-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-email {
+  font-weight: 600;
+  color: #343a40;
+  font-size: 0.95rem;
+}
+
+.inactive-user .user-email {
+  text-decoration: line-through;
+}
+
+.deactivated-label {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: #dc3545;
+  font-weight: normal;
+}
+
+.user-joined {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.company-name {
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+/* Role badge */
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* Status badge */
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Remove old action column styles if they exist */
+.table th:last-child,
+.table td:last-child {
+  text-align: left;
 }

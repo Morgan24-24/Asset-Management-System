@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axiosInstance from '../api/axios'
 import { FiFileText, FiDownload, FiPrinter, FiCalendar, FiFilter, FiBarChart2, FiDollarSign, FiTool,FiHome } from 'react-icons/fi'
+import { formatCurrency, formatNumber } from '../utils/formatters'
 
 const Reports = () => {
   const [generating, setGenerating] = useState(false)
@@ -340,7 +341,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Total Assets</h3>
-                      <div className="stat-number">{reportStats.total_assets || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.total_assets || 0, 0)}</div>
                       <div className="stat-trend">In inventory</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -351,7 +352,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Active Assets</h3>
-                      <div className="stat-number">{reportStats.active_assets || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.active_assets || 0, 0)}</div>
                       <div className="stat-trend">In use</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -362,10 +363,10 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Total Value</h3>
-                      <div className="stat-number">₵{reportStats.total_asset_cost?.toFixed(2) || '0.00'}</div>
+                      <div className="stat-number">{formatCurrency(reportStats.total_asset_cost || 0)}</div>
                       <div className="stat-trend">Asset investment</div>
                     </div>
-                    <div className="stat-icon"><FiDollarSign size={24} /></div>
+                    <div className="stat-icon"></div>
                   </div>
                 </div>
 
@@ -373,7 +374,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Under Maintenance</h3>
-                      <div className="stat-number">{reportStats.maintenance_assets || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.maintenance_assets || 0, 0)}</div>
                       <div className="stat-trend">Being serviced</div>
                     </div>
                     <div className="stat-icon"><FiTool size={24} /></div>
@@ -388,10 +389,9 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Total Purchase Value</h3>
-                      <div className="stat-number">₵{reportStats.summary.total_purchase_value?.toFixed(2) || '0.00'}</div>
+                      <div className="stat-number">{formatCurrency(reportStats.summary.total_purchase_value || 0)}</div>
                       <div className="stat-trend">Original cost</div>
                     </div>
-                    <div className="stat-icon"><FiDollarSign size={24} /></div>
                   </div>
                 </div>
 
@@ -399,10 +399,9 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Total Depreciation</h3>
-                      <div className="stat-number">₵{reportStats.summary.total_depreciation?.toFixed(2) || '0.00'}</div>
+                      <div className="stat-number">{formatCurrency(reportStats.summary.total_depreciation || 0)}</div>
                       <div className="stat-trend">Value lost</div>
                     </div>
-                    <div className="stat-icon"><FiDollarSign size={24} /></div>
                   </div>
                 </div>
 
@@ -410,10 +409,9 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Current Value</h3>
-                      <div className="stat-number">₵{reportStats.summary.total_current_value?.toFixed(2) || '0.00'}</div>
+                      <div className="stat-number">{formatCurrency(reportStats.summary.total_current_value || 0)}</div>
                       <div className="stat-trend">Net worth</div>
                     </div>
-                    <div className="stat-icon"><FiDollarSign size={24} /></div>
                   </div>
                 </div>
 
@@ -421,7 +419,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Depreciation Rate</h3>
-                      <div className="stat-number">{reportStats.summary.overall_depreciation_rate?.toFixed(1) || '0'}%</div>
+                      <div className="stat-number">{formatNumber(reportStats.summary.overall_depreciation_rate || 0, 1)}%</div>
                       <div className="stat-trend">Average</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -436,10 +434,9 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Total Maintenance Cost</h3>
-                      <div className="stat-number">₵{reportStats.total_cost?.toFixed(2) || '0.00'}</div>
+                      <div className="stat-number">{formatCurrency(reportStats.total_cost || 0)}</div>
                       <div className="stat-trend">All time</div>
                     </div>
-                    <div className="stat-icon"><FiDollarSign size={24} /></div>
                   </div>
                 </div>
 
@@ -447,7 +444,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Maintenance Records</h3>
-                      <div className="stat-number">{reportStats.breakdown?.length || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.breakdown?.length || 0, 0)}</div>
                       <div className="stat-trend">Total activities</div>
                     </div>
                     <div className="stat-icon"><FiTool size={24} /></div>
@@ -462,7 +459,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Utilization Rate</h3>
-                      <div className="stat-number">{reportStats.overall.utilization_rate?.toFixed(1) || '0'}%</div>
+                      <div className="stat-number">{formatNumber(reportStats.overall.utilization_rate || 0, 1)}%</div>
                       <div className="stat-trend">Asset usage</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -473,7 +470,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Active Assets</h3>
-                      <div className="stat-number">{reportStats.overall.active || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.overall.active || 0, 0)}</div>
                       <div className="stat-trend">In use</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -484,7 +481,7 @@ const Reports = () => {
                   <div className="stat-header">
                     <div className="stat-content">
                       <h3>Available Assets</h3>
-                      <div className="stat-number">{reportStats.overall.available || 0}</div>
+                      <div className="stat-number">{formatNumber(reportStats.overall.available || 0, 0)}</div>
                       <div className="stat-trend">Ready to deploy</div>
                     </div>
                     <div className="stat-icon"><FiBarChart2 size={24} /></div>
@@ -509,8 +506,8 @@ const Reports = () => {
                     {reportStats.by_department.map((dept, index) => (
                       <tr key={index}>
                         <td>{dept.department}</td>
-                        <td>{dept.total_assets}</td>
-                        <td>{dept.active_assets}</td>
+                        <td>{formatNumber(dept.total_assets, 0)}</td>
+                        <td>{formatNumber(dept.active_assets, 0)}</td>
                         <td>
                           <span style={{
                             padding: '4px 8px',
@@ -522,7 +519,7 @@ const Reports = () => {
                             color: dept.utilization_rate >= 80 ? '#155724' : 
                                   dept.utilization_rate >= 50 ? '#856404' : '#721c24'
                           }}>
-                            {dept.utilization_rate}%
+                            {formatNumber(dept.utilization_rate, 0)}%
                           </span>
                         </td>
                       </tr>
@@ -575,7 +572,6 @@ const Reports = () => {
                   <h3>Depreciation Report</h3>
                   <p>Asset values and depreciation calculations</p>
                 </div>
-                <div className="stat-icon">{getReportIcon('depreciation')}</div>
               </div>
             </div>
 

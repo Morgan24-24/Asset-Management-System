@@ -1,0 +1,46 @@
+/* ==================== BREADCRUMBS ==================== */
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  color: #6c757d;
+  flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6c757d;
+  transition: color 0.2s;
+}
+
+.breadcrumb-item.active {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.breadcrumb-icon {
+  opacity: 0.7;
+}
+
+.breadcrumb-separator {
+  color: #cbd5e0;
+  flex-shrink: 0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .breadcrumbs {
+    font-size: 0.85rem;
+    padding: 10px 0;
+  }
+  
+  .breadcrumb-item {
+    gap: 4px;
+  }
+}
