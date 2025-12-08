@@ -1689,6 +1689,19 @@ def get_summary(
         Asset.status == AssetStatusEnum.UNDER_MAINTENANCE,
         Asset.is_deleted == False
     ).count()
+    
+    # FIX: Query available assets directly instead of calculating
+    total_available = db.query(Asset).filter(
+        Asset.status == AssetStatusEnum.AVAILABLE,
+        Asset.is_deleted == False
+    ).count()
+    
+    # Add retired count for completeness
+    total_retired = db.query(Asset).filter(
+        Asset.status == AssetStatusEnum.RETIRED,
+        Asset.is_deleted == False
+    ).count()
+    
     total_cost = db.query(func.sum(Asset.cost)).filter(Asset.is_deleted == False).scalar() or 0.0
     total_maintenance_cost = db.query(func.sum(Maintenance.cost)).scalar() or 0.0
     
@@ -1700,7 +1713,8 @@ def get_summary(
         "total_assets": total_assets,
         "active_assets": total_active,
         "maintenance_assets": total_maintenance,
-        "available_assets": total_assets - total_active - total_maintenance,
+        "available_assets": total_available,  # FIX: Use direct query
+        "retired_assets": total_retired,  # Add this for completeness
         "total_asset_cost": round(total_cost, 2),
         "total_maintenance_cost": round(total_maintenance_cost, 2),
         "total_users": total_users,

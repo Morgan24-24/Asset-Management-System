@@ -1,10 +1,13 @@
 import React, { useState } from 'react'
-import { FiX, FiEdit, FiRefreshCw, FiUser, FiCalendar, FiPackage, FiMapPin, FiCheckCircle, FiAlertCircle, FiClock } from 'react-icons/fi'
+import { FiX, FiEdit, FiRefreshCw, FiUser, FiCalendar, FiPackage, FiMapPin, FiCheckCircle, FiAlertCircle, FiClock, FiCornerUpLeft } from 'react-icons/fi'
 import { formatCurrency, formatNumber } from '../utils/formatters'
 import { getDisplayName } from '../utils/helpers'
+import axiosInstance from '../api/axios'
 import './AssetDrawer.css'
 
 const AssetDrawer = ({ asset, onClose, onRefresh, user, onViewHistory, onEdit, onTransfer }) => {
+  const [returning, setReturning] = useState(false)
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'Active': return { bg: '#d4edda', text: '#155724', icon: FiCheckCircle }
@@ -37,6 +40,24 @@ const AssetDrawer = ({ asset, onClose, onRefresh, user, onViewHistory, onEdit, o
   const handleTransfer = () => {
     if (onTransfer) {
       onTransfer(asset)
+    }
+  }
+
+  const handleReturnAsset = async () => {
+    if (!window.confirm(`Return asset ${asset.id}? This will make it available for reassignment.`)) {
+      return
+    }
+
+    setReturning(true)
+    try {
+      await axiosInstance.post(`/assets/${asset.id}/return`)
+      alert('Asset returned successfully! It is now available for reassignment.')
+      onRefresh()
+      onClose()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to return asset')
+    } finally {
+      setReturning(false)
     }
   }
 
@@ -193,13 +214,26 @@ const AssetDrawer = ({ asset, onClose, onRefresh, user, onViewHistory, onEdit, o
 
           {(user?.role === 'Admin' || user?.role === 'Manager') && (
             <>
+              {/* Show Return button ONLY if asset is currently assigned (Active status) */}
+              {asset.status === 'Active' && asset.assignee && (
+                <button 
+                  className="btn btn-info"
+                  onClick={handleReturnAsset}
+                  disabled={returning}
+                >
+                  <FiCornerUpLeft size={18} />
+                  {returning ? 'Returning...' : 'Return Asset'}
+                </button>
+              )}
+
+              {/* Show Transfer button for Active and Available assets (not Retired) */}
               {asset.status !== 'Retired' && (
                 <button 
                   className="btn btn-primary"
                   onClick={handleTransfer}
                 >
                   <FiRefreshCw size={18} />
-                  Transfer
+                  {asset.status === 'Active' ? 'Transfer' : 'Assign'}
                 </button>
               )}
               

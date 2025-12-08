@@ -15,12 +15,18 @@ import {
   FiRefreshCw
 } from 'react-icons/fi'
 import { formatCurrency, formatNumber } from '../utils/formatters'
+import DashboardStatsModal from './DashboardStatsModal'
+import './DashboardStatsModal.css' // Ensure CSS is imported if needed for the clickable class
 
 const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
   const [summary, setSummary] = useState(null)
   const [assetStats, setAssetStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedCardType, setSelectedCardType] = useState(null)
 
   // Fetch dashboard data
   const fetchDashboardData = async () => {
@@ -60,19 +66,30 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
   const totalAssetCost = assets.reduce((sum, asset) => sum + (asset.cost || 0), 0)
 
   // Use API data if available, otherwise use calculated values
-  const displaySummary = summary || {
-    total_assets: totalAssets,
-    active_assets: activeAssets,
-    maintenance_assets: underMaintenanceAssets,
-    available_assets: availableAssets,
-    total_asset_cost: totalAssetCost,
-    total_maintenance_cost: totalMaintenanceCost,
-    total_users: 0,
-    total_departments: 0
-  }
+ const displaySummary = {
+  total_assets: totalAssets,
+  active_assets: activeAssets,
+  maintenance_assets: underMaintenanceAssets,
+  available_assets: availableAssets,
+  total_asset_cost: totalAssetCost,
+  total_maintenance_cost: totalMaintenanceCost,
+  total_users: summary?.total_users || 0,
+  total_departments: summary?.total_departments || 0
+}
 
   const handleRefresh = () => {
     fetchDashboardData()
+  }
+
+  // Handle stat card click
+  const handleCardClick = (cardType) => {
+    setSelectedCardType(cardType)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedCardType(null)
   }
 
   const getStatusColor = (status) => {
@@ -145,7 +162,11 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
     {/* Stats Grid */}
     <div className="stats-grid">
       {/* Total Assets */}
-      <div className="stat-card">
+      <div 
+        className="stat-card clickable-card" 
+        onClick={() => handleCardClick('total_assets')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Total Assets</h3>
@@ -159,7 +180,11 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
       </div>
 
       {/* Active Assets */}
-      <div className="stat-card success">
+      <div 
+        className="stat-card success clickable-card"
+        onClick={() => handleCardClick('active_assets')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Active Assets</h3>
@@ -173,7 +198,11 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
       </div>
 
       {/* Available Assets */}
-      <div className="stat-card info">
+      <div 
+        className="stat-card info clickable-card"
+        onClick={() => handleCardClick('available_assets')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Available Assets</h3>
@@ -187,7 +216,11 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
       </div>
 
       {/* Under Maintenance */}
-      <div className="stat-card warning">
+      <div 
+        className="stat-card warning clickable-card"
+        onClick={() => handleCardClick('under_maintenance')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Under Maintenance</h3>
@@ -200,8 +233,12 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         </div>
       </div>
 
-      {/* Software Licenses */}
-      <div className="stat-card">
+      {/* Software Licenses - NOW ACTIVE */}
+      <div 
+        className="stat-card clickable-card"
+        onClick={() => handleCardClick('total_licenses')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Software Licenses</h3>
@@ -214,8 +251,12 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         </div>
       </div>
 
-      {/* Active Licenses */}
-      <div className="stat-card success">
+      {/* Active Licenses - NOW ACTIVE */}
+      <div 
+        className="stat-card success clickable-card"
+        onClick={() => handleCardClick('active_licenses')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Active Licenses</h3>
@@ -231,32 +272,42 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
 
     {/* Cost Stats */}
     <div className="stats-grid">
-      <div className="stat-card">
+      {/* Total Asset Cost */}
+      <div 
+        className="stat-card clickable-card"
+        onClick={() => handleCardClick('total_cost')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Total Asset Value</h3>
             <div className="stat-number">{formatCurrency(displaySummary.total_asset_cost)}</div>
             <div className="stat-trend">Total investment</div>
           </div>
-          <div className="stat-icon" style={{ color: '#28a745' }}>
-          </div>
         </div>
       </div>
 
-      <div className="stat-card warning">
+      {/* Maintenance Cost - NOW ACTIVE */}
+      <div 
+        className="stat-card warning clickable-card"
+        onClick={() => handleCardClick('maintenance_cost')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Maintenance Cost</h3>
             <div className="stat-number">{formatCurrency(displaySummary.total_maintenance_cost)}</div>
             <div className="stat-trend">Service expenses</div>
           </div>
-          <div className="stat-icon">
-          </div>
         </div>
       </div>
 
       {/* Retired Assets */}
-      <div className="stat-card">
+      <div 
+        className="stat-card clickable-card"
+        onClick={() => handleCardClick('retired_assets')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Retired Assets</h3>
@@ -270,7 +321,11 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
       </div>
 
       {/* Expired Licenses */}
-      <div className="stat-card warning">
+      <div 
+        className="stat-card warning clickable-card"
+        onClick={() => handleCardClick('expired_licenses')}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="stat-header">
           <div className="stat-content">
             <h3>Expired Licenses</h3>
@@ -417,6 +472,17 @@ const Dashboard = ({ assets, maintenance, licenses, onNavigate, user }) => {
         </div>
       </div>
     )}
+
+    {/* Dashboard Stats Modal */}
+    <DashboardStatsModal
+      isOpen={isModalOpen}
+      onClose={handleCloseModal}
+      cardType={selectedCardType}
+      assets={assets}
+      maintenance={maintenance}
+      licenses={licenses}
+      onNavigate={onNavigate}
+    />
   </div>
 )
 }
