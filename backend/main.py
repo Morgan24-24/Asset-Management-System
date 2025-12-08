@@ -1013,7 +1013,7 @@ def return_asset(
     
     # Log activity
     log_activity(
-        db, current_user["user_id"], ActivityType.TRANSFER,
+        db, current_user["user_id"], ActivityType.RETURN,
         f"Asset {asset_id} returned and marked as available",
         asset_id=asset_id
     )

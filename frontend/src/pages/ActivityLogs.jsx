@@ -132,6 +132,7 @@ const ActivityLogs = ({ user }) => {
       case 'DELETE': return '#dc3545'
       case 'ASSIGN': return '#ffc107'
       case 'TRANSFER': return '#fd7e14'
+      case 'RETURN': return '#20c997'
       case 'MAINTENANCE': return '#6f42c1'
       case 'LOGIN': return '#007bff'
       case 'LOGOUT': return '#6c757d'
@@ -253,6 +254,7 @@ const ActivityLogs = ({ user }) => {
                   <option value="DELETE">Delete</option>
                   <option value="ASSIGN">Assign</option>
                   <option value="TRANSFER">Transfer</option>
+                  <option value="RETURN">Return</option>
                   <option value="MAINTENANCE">Maintenance</option>
                   <option value="LOGIN">Login</option>
                   <option value="LOGOUT">Logout</option>

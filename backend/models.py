@@ -37,6 +37,7 @@ class ActivityType(str, enum.Enum):
     REACTIVATE = "REACTIVATE" 
     REMOVE = "REMOVE"
     UPLOAD = "UPLOAD"
+    RETURN = "RETURN"
 
 # ==================== MODELS ====================
 
